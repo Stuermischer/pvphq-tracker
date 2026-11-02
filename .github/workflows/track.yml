@@ -2,15 +2,20 @@ name: Track PvPHQ
 
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "55 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: track
+  cancel-in-progress: false
+
 jobs:
   track:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
