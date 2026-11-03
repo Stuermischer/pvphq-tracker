@@ -87,6 +87,10 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     history = []
 
+# Messungen vor dem 03.11.2026, 00:00 Uhr (MEZ) werden entfernt
+CUTOFF = int(datetime.datetime(2026, 11, 2, 23, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+history = [p for p in history if p.get("t", 0) >= CUTOFF]
+
 if history and history[-1].get("t") == point["t"]:
     # gleiche volle Stunde (z. B. Lauf von Hand): ergänzen statt doppelt speichern
     history[-1].update(point)

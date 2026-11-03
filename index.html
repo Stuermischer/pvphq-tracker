@@ -82,6 +82,10 @@ td.up{color:var(--up)}td.down{color:var(--down)}
 .tabbtn:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;border-radius:6px}
 .toolbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:0 0 14px}
 .lbl{color:var(--muted);font-size:13px}
+.rnav{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
+.rnav .chip{padding:5px 13px;font-size:16px}
+.rnav .chip:disabled{opacity:.35;cursor:default}
+.navl{min-width:150px;text-align:center;font-weight:500;font-size:14px}
 .chrow{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px}
 .champ{display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--accent) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:14px;padding:10px 14px;margin:14px 0 14px;font-size:15px}
 .champ b{font:800 20px "Manrope",system-ui,sans-serif}
@@ -133,7 +137,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   </div>
   <nav class="tabs" id="sections" role="tablist" aria-label="Bereich"></nav>
   <div id="secRanked">
-  <div class="toolbar"><span class="lbl">Zeitraum</span><div class="chips" id="ranges"></div></div>
+  <div class="toolbar"><span class="lbl">Zeitraum</span><div class="chips" id="ranges"></div><div class="rnav" id="rnav"></div></div>
   <div class="cols">
     <section class="card">
       <h2>Anzahl</h2>
@@ -177,7 +181,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     ["overall","Overall"],["sword","Sword"],["axe","Axe"],["mace","Mace"],["spear_mace","Spear"],["uhc","UHC"],
     ["netherite_pot","NethPot"],["pot","Pot"],["smp","SMP"],["diamond_smp","DiaSMP"],["vanilla","Vanilla"],["cart","Cart"]
   ];
-  var RANGES=[["24h","24 Std.",864e5],["7d","7 Tage",6048e5],["all","Alles",0]];
+  var RANGES=[["day","Tag"],["week","Woche"],["all","Alles"]];
+  var DATA_FROM=Date.parse("2026-11-03T00:00:00+01:00"); /* ältere Messungen werden ausgeblendet */
   var COLORS={overall:"var(--ink)",sword:"hsl(8 75% 58%)",axe:"hsl(30 85% 55%)",mace:"hsl(48 85% 50%)",spear_mace:"hsl(80 60% 50%)",uhc:"hsl(130 55% 48%)",netherite_pot:"hsl(165 60% 45%)",pot:"hsl(190 70% 50%)",smp:"hsl(215 75% 60%)",diamond_smp:"hsl(250 70% 65%)",vanilla:"hsl(280 60% 62%)",cart:"hsl(325 70% 62%)"};
   var P='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
   var POT='<path d="M10 3h4M11 3v5l-4.5 8a3 3 0 0 0 2.6 4.5h5.8a3 3 0 0 0 2.6-4.5L13 8V3"/>';
@@ -200,7 +205,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   var nf=new Intl.NumberFormat("de-DE");
   var L=58,T=14,B=28;
   var TOL=30*6e4; /* Toleranz: Messungen kommen bis zu ca. 30 Min. zu spät */
-  var data=[],selA="overall",onB={},range="all",loaded=false,failed="",cur={};
+  var data=[],selA="overall",onB={},range="all",off=0,loaded=false,failed="",cur={};
   LADDERS.forEach(function(l){onB[l[0]]=true});
   var $=function(id){return document.getElementById(id)};
 
@@ -270,16 +275,51 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       el.appendChild(modeChip(id,l[1],!!onB[id],"background:color-mix(in srgb,"+c+" 22%,var(--surface));box-shadow:inset 0 0 0 2px "+c+";opacity:1",function(){onB[id]=!onB[id];render()}));
     });
   }
-  function cutoff(){
-    var r=RANGES.filter(function(x){return x[0]===range})[0];
-    if(!r[2])return 0;
-    var last=0;
-    data.forEach(function(p){if(p&&typeof p.t==="number"&&p.t>last)last=p.t});
-    return last-r[2]-TOL;
+  function dayStart(t){var d=new Date(t);d.setHours(0,0,0,0);return d}
+  function winFor(){
+    if(range==="all")return{from:0,to:Infinity};
+    var d=dayStart(Date.now()),e;
+    if(range==="day"){d.setDate(d.getDate()+off);e=new Date(d);e.setDate(e.getDate()+1)}
+    else{d.setDate(d.getDate()-((d.getDay()+6)%7)+off*7);e=new Date(d);e.setDate(e.getDate()+7)}
+    return{from:d.getTime(),to:e.getTime()}
+  }
+  function isoWeek(t){
+    var d=new Date(t),u=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())),n=u.getUTCDay()||7;
+    u.setUTCDate(u.getUTCDate()+4-n);
+    return Math.ceil(((u-new Date(Date.UTC(u.getUTCFullYear(),0,1)))/864e5+1)/7);
+  }
+  function navLabel(){
+    var w=winFor();
+    if(range==="day"){
+      if(off===0)return"Heute";
+      if(off===-1)return"Gestern";
+      return["So","Mo","Di","Mi","Do","Fr","Sa"][new Date(w.from).getDay()]+" "+fD(w.from);
+    }
+    var kw="KW "+isoWeek(w.from);
+    if(off===0)return"Diese Woche ("+kw+")";
+    if(off===-1)return"Letzte Woche ("+kw+")";
+    return kw+" ("+fD(w.from)+"–"+fD(w.to-1)+")";
+  }
+  function canPrev(){
+    var m=Infinity;
+    data.forEach(function(p){if(p.t<m)m=p.t});
+    return m<winFor().from;
+  }
+  function renderNav(){
+    var box=$("rnav");box.innerHTML="";
+    if(range==="all"){box.hidden=true;return}
+    box.hidden=false;
+    var pv=el("button","chip","‹"),nx=el("button","chip","›"),lb=el("span","navl",navLabel());
+    pv.type=nx.type="button";
+    pv.setAttribute("aria-label","Früher");nx.setAttribute("aria-label","Später");
+    pv.disabled=!canPrev();nx.disabled=off>=0;
+    pv.addEventListener("click",function(){off--;render()});
+    nx.addEventListener("click",function(){off++;render()});
+    box.appendChild(pv);box.appendChild(lb);box.appendChild(nx);
   }
   function series(id){
-    var cut=cutoff();
-    return data.filter(function(p){return p&&typeof p.t==="number"&&typeof p[id]==="number"&&p.t>=cut}).sort(function(a,b){return a.t-b.t});
+    var w=winFor();
+    return data.filter(function(p){return p&&typeof p.t==="number"&&typeof p[id]==="number"&&p.t>=w.from&&p.t<w.to}).sort(function(a,b){return a.t-b.t});
   }
   function msg(el,t){el.innerHTML='<div class="empty">'+t+'</div>'}
 
@@ -295,11 +335,13 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       var d=p[id]-prev[id],hr=(p.t-prev.t)/36e5;
       h+=tile(isLast?"Seit letzter Messung":"Zur Messung davor",fN(d),pc(d,prev[id])+", "+fR(d/hr)+", nach "+ago(p.t-prev.t),cls(d));
     }else h+=tile("Seit letzter Messung","–","erste Messung");
-    var ref=null;
-    pts.forEach(function(q){if(q.t<=p.t-864e5+TOL)ref=q});
-    var lab=ref?"Letzte 24 Std.":"Seit Start",base=ref||first;
-    if(p!==base){var d2=p[id]-base[id];h+=tile(lab,fN(d2),pc(d2,base[id])+", seit "+fD(base.t)+" "+fT(base.t),cls(d2))}
-    else h+=tile(lab,"–","");
+    var ds0=new Date(p.t);ds0.setHours(0,0,0,0);
+    var dayStart=ds0.getTime(),base=null;
+    pts.forEach(function(q){if(!base&&q.t>=dayStart-TOL)base=q});
+    var tl0=new Date();tl0.setHours(0,0,0,0);
+    var dlab=dayStart===tl0.getTime()?"Heute":"Am "+fD(dayStart);
+    if(base&&p!==base){var d2=p[id]-base[id];h+=tile(dlab,fN(d2),pc(d2,base[id])+", seit "+fT(base.t)+" Uhr",cls(d2))}
+    else h+=tile(dlab,"–","noch keine zweite Messung an diesem Tag");
     var hrs=(p.t-first.t)/36e5;
     if(hrs>0){var ph=(p[id]-first[id])/hrs;h+=tile("Ø pro Stunde",fR(ph),"über "+ago(p.t-first.t),cls(ph))}
     else h+=tile("Ø pro Stunde","–","");
@@ -493,7 +535,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   function render(){
     renderSections();
     if(section==="champs"){renderChamps();return}
-    chips($("ranges"),RANGES,range,function(id){range=id;render()});
+    chips($("ranges"),RANGES,range,function(id){range=id;off=0;render()});
+    renderNav();
     buildModesA();buildModesB();
     renderGraph("abs");renderGraph("rel");
   }
@@ -507,7 +550,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       if(!r.ok)throw new Error("HTTP "+r.status);
       return r.json();
     }).then(function(h){
-      data=Array.isArray(h)?h:[];loaded=true;failed="";
+      data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];loaded=true;failed="";
       $("status").textContent="Aktualisiert um "+fT(Date.now())+" Uhr, "+data.length+" Messungen insgesamt";
     }).catch(function(e){
       clearTimeout(timer);failed=e&&e.message?e.message:"Fehler";
