@@ -1,30 +1,40 @@
 import datetime
 import json
+import os
 import re
 import sys
 import time
 import urllib.request
 
-# Name in history.json -> mögliche Adressen auf der Seite
+# Name in history.json -> Adresse auf der Seite
 LADDERS = {
-    "overall": ["overall"],
-    "sword": ["sword"],
-    "axe": ["axe"],
-    "mace": ["mace"],
-    "spear_mace": ["spear_mace"],
-    "uhc": ["uhc"],
-    "netherite_pot": ["netherite_pot"],
-    "pot": ["pot"],
-    "smp": ["smp"],
-    "diamond_smp": ["diamond_smp"],
-    "vanilla": ["vanilla"],
-    "cart": ["cart"],
+    "overall": "overall",
+    "sword": "sword",
+    "axe": "axe",
+    "mace": "mace",
+    "spear_mace": "spear_mace",
+    "uhc": "uhc",
+    "netherite_pot": "netherite_pot",
+    "pot": "pot",
+    "smp": "smp",
+    "diamond_smp": "diamond_smp",
+    "vanilla": "vanilla",
+    "cart": "cart",
 }
 HOSTS = ["https://pvphq.com", "https://flowpvp.gg"]
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; pvphq-tracker/1.0)"}
-TRIES = 3  # Versuche pro Modus (die Seite liefert manchmal nur eine leere Standardseite)
-WAIT = 6  # Sekunden Pause zwischen den Versuchen (wird jedes Mal länger)
-DEADLINE = time.time() + 12 * 60  # nach 12 Minuten nicht mehr wiederholen
+
+PASSES = 4  # Durchgänge: Fehlende Modi werden nach einer Pause erneut abgefragt
+PAUSE = 30  # Sekunden Pause vor dem nächsten Durchgang (wird jedes Mal länger)
+DELAY = 2  # Sekunden Abstand zwischen zwei Anfragen, damit kein Rate Limit ausgelöst wird
+MAX_JUMP = 0.25  # Zahlen, die mehr als 25 % vom letzten Wert abweichen, gelten als fehlerhaft geladen
+DEADLINE = time.time() + 14 * 60  # danach keine weiteren Durchgänge
+
+# Messungen vor dem 03.11.2026, 00:00 Uhr (MEZ) werden entfernt
+CUTOFF = int(datetime.datetime(2026, 11, 2, 23, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+# Von Hand gestartete Läufe sind nur ein Test: Sie zeigen die Zahlen, speichern aber nichts.
+DRY = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
 
 
 def fetch(url):
@@ -43,64 +53,69 @@ def parse(html):
     return n if n > 0 else None
 
 
-def count(name, paths):
-    for attempt in range(TRIES):
-        for path in paths:
-            for host in HOSTS:
-                try:
-                    # Zeitstempel in der Adresse, damit keine zwischengespeicherte Leerseite kommt
-                    html = fetch(f"{host}/leaderboard/{path}?t={int(time.time())}")
-                    n = parse(html)
-                    if n:
-                        return n
-                    print(f"{name}: {host} lieferte keine Zahl (Versuch {attempt + 1})", file=sys.stderr)
-                except Exception as e:
-                    print(f"{name}: {host}: {e}", file=sys.stderr)
-        if attempt < TRIES - 1 and time.time() < DEADLINE:
-            time.sleep(WAIT * (attempt + 1))
-        else:
-            break
+def last_value(history, name):
+    for p in reversed(history):
+        if isinstance(p.get(name), int):
+            return p[name]
     return None
 
-
-now = datetime.datetime.now(datetime.timezone.utc)
-# Der Lauf ist für 5 Minuten vor der vollen Stunde geplant (xx:55) und startet bei GitHub oft
-# etwas später. Die Messung wird deshalb der nächsten vollen Stunde zugeordnet.
-hour = (now + datetime.timedelta(minutes=5)).replace(minute=0, second=0, microsecond=0)
-point = {"t": int(hour.timestamp() * 1000)}
-missing = []
-for ladder, paths in LADDERS.items():
-    c = count(ladder, paths)
-    if c is not None:
-        point[ladder] = c
-    else:
-        missing.append(ladder)
-
-if len(point) == 1:
-    # Seite liefert gerade keine Zahlen (z. B. Wartung oder Ausfall): Lauf überspringen, nichts speichern
-    print("Keine Zahlen gefunden, Lauf übersprungen")
-    sys.exit(0)
 
 try:
     with open("history.json", encoding="utf-8") as f:
         history = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
     history = []
-
-# Messungen vor dem 03.11.2026, 00:00 Uhr (MEZ) werden entfernt
-CUTOFF = int(datetime.datetime(2026, 11, 2, 23, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000)
 history = [p for p in history if p.get("t", 0) >= CUTOFF]
 
-if history and history[-1].get("t") == point["t"]:
-    # gleiche volle Stunde (z. B. Lauf von Hand): ergänzen statt doppelt speichern
-    history[-1].update(point)
-else:
-    history.append(point)
+now = datetime.datetime.now(datetime.timezone.utc)
+todo = list(LADDERS)
+found = {}
+
+for attempt in range(PASSES):
+    # abwechselnd pvphq.com und flowpvp.gg, pro Durchgang nur eine Anfrage je Modus
+    host = HOSTS[attempt % len(HOSTS)]
+    for name in list(todo):
+        n = None
+        try:
+            n = parse(fetch(f"{host}/leaderboard/{LADDERS[name]}?t={int(time.time())}"))
+            if n is None:
+                print(f"{name}: {host} lieferte keine Zahl (Durchgang {attempt + 1})", file=sys.stderr)
+        except Exception as e:
+            print(f"{name}: {host}: {e}", file=sys.stderr)
+        time.sleep(DELAY)
+        if n is None:
+            continue
+        last = last_value(history, name)
+        if last and abs(n - last) / last > MAX_JUMP:
+            print(f"{name}: {n} weicht stark von {last} ab, verworfen", file=sys.stderr)
+            continue
+        found[name] = n
+        todo.remove(name)
+    if not todo or time.time() > DEADLINE or attempt == PASSES - 1:
+        break
+    time.sleep(PAUSE * (attempt + 1))
+
+if not found:
+    # Seite liefert gerade keine Zahlen (z. B. Wartung oder Ausfall): Lauf überspringen
+    print("Keine Zahlen gefunden, Lauf übersprungen")
+    sys.exit(0)
+
+point = {"t": int(now.timestamp() * 1000)}  # tatsächliche Zeit der Messung
+point.update(found)
+
+if DRY:
+    print("Testlauf (von Hand gestartet), es wird nichts gespeichert:")
+    print(point)
+    if todo:
+        print("Nicht gefunden:", ", ".join(todo))
+    sys.exit(0)
+
+history.append(point)
 history = history[-10000:]
 
 with open("history.json", "w", encoding="utf-8") as f:
     json.dump(history, f, separators=(",", ":"))
 
 print(point)
-if missing:
-    print("Nicht gefunden:", ", ".join(missing))
+if todo:
+    print("Nicht gefunden:", ", ".join(todo))
