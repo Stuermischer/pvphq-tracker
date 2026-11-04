@@ -67,9 +67,10 @@ except (FileNotFoundError, json.JSONDecodeError):
     history = []
 history = [p for p in history if p.get("t", 0) >= CUTOFF]
 
-now = datetime.datetime.now(datetime.timezone.utc)
+start = time.time()  # Start des Laufs
 todo = list(LADDERS)
 found = {}
+when = {}  # Zeitpunkt, an dem die Zahl des jeweiligen Modus tatsächlich gelesen wurde
 
 for attempt in range(PASSES):
     # abwechselnd pvphq.com und flowpvp.gg, pro Durchgang nur eine Anfrage je Modus
@@ -90,6 +91,7 @@ for attempt in range(PASSES):
             print(f"{name}: {n} weicht stark von {last} ab, verworfen", file=sys.stderr)
             continue
         found[name] = n
+        when[name] = time.time()
         todo.remove(name)
     if not todo or time.time() > DEADLINE or attempt == PASSES - 1:
         break
@@ -100,8 +102,13 @@ if not found:
     print("Keine Zahlen gefunden, Lauf übersprungen")
     sys.exit(0)
 
-point = {"t": int(now.timestamp() * 1000)}  # tatsächliche Zeit der Messung
+# t = Start des Laufs. Weil die Modi nacheinander (und bei Fehlern erst später) gelesen werden,
+# steht in "o" für jeden Modus, wie viele Sekunden nach dem Start er wirklich gemessen wurde.
+point = {"t": int(start * 1000)}
 point.update(found)
+offsets = {k: round(when[k] - start) for k in found if round(when[k] - start) > 0}
+if offsets:
+    point["o"] = offsets
 
 if DRY:
     print("Testlauf (von Hand gestartet), es wird nichts gespeichert:")
