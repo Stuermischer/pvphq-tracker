@@ -30,8 +30,8 @@ DELAY = 2  # Sekunden Abstand zwischen zwei Anfragen, damit kein Rate Limit ausg
 MAX_JUMP = 0.25  # Zahlen, die mehr als 25 % vom letzten Wert abweichen, gelten als fehlerhaft geladen
 DEADLINE = time.time() + 14 * 60  # danach keine weiteren Durchgänge
 
-# Messungen vor dem 03.11.2026, 00:00 Uhr (MEZ) werden entfernt
-CUTOFF = int(datetime.datetime(2026, 11, 2, 23, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+# Messungen vor dem 04.11.2026, 16:00 Uhr (MEZ) werden entfernt (die Messung um 16:20 bleibt)
+CUTOFF = int(datetime.datetime(2026, 11, 4, 15, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000)
 
 # Von Hand gestartete Läufe sind nur ein Test: Sie zeigen die Zahlen, speichern aber nichts.
 DRY = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
