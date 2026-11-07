@@ -124,6 +124,13 @@ td.up{color:var(--up)}td.down{color:var(--down)}
 .addrow{display:flex;gap:8px;margin-top:6px}
 .addrow input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
 .hint{color:var(--muted);font-size:13px;margin:0}
+.rk{width:28px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tier{display:inline-block;min-width:30px;text-align:center;font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted)}
+.pl{display:flex;align-items:center;gap:10px;font-weight:500}
+.shr{display:grid;grid-template-columns:24px 76px 1fr 66px 86px;gap:10px;align-items:center;padding:5px 0;font-size:14px}
+.bar2{height:10px;border-radius:5px;background:var(--chip);overflow:hidden}
+.bar2 i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.shr .num.up{color:var(--up)}.shr .num.down{color:var(--down)}.shr .num{font-size:13px}
 .foot{margin-top:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .btn{font:500 15px "IBM Plex Sans",system-ui,sans-serif;background:var(--accent);color:#1B1410;border:0;border-radius:10px;padding:11px 18px;cursor:pointer}
 .btn:disabled{opacity:.6;cursor:wait}
@@ -156,6 +163,19 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       <div class="chips" id="modesB"></div>
       <div class="plot" style="margin-top:16px"><div class="chart" id="chartB"></div><div class="tip" id="tip" hidden></div></div>
       <div id="tbl"></div>
+    </section>
+  </div>
+  <div class="cols" style="margin-top:20px">
+    <section class="card">
+      <h2>Top 5</h2>
+      <p class="hint" id="topHint"></p>
+      <div id="topList"></div>
+      <div id="topLog"></div>
+    </section>
+    <section class="card">
+      <h2>Anteil an Overall</h2>
+      <p class="hint">Wie viel Prozent aller gerankten Spieler (Overall) in einem Modus gerankt sind. Die Prozente ergeben zusammen mehr als 100 %, weil ein Spieler in mehreren Modi gerankt sein kann. Die Veränderung in Prozentpunkten (PP) gilt für den gewählten Zeitraum.</p>
+      <div id="shareBox"></div>
     </section>
   </div>
   <div class="foot">
@@ -334,21 +354,24 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     $("when").textContent=p?fDT(p.t):"";
   }
   function tile(k,n,sub,c){return'<div class="tile"><div class="k">'+k+'</div><div class="n '+(c||"")+'">'+n+'</div><div class="s">'+sub+'</div></div>'}
-  function renderStats(pts,i){
-    var id=selA,p=pts[i],prev=i>0?pts[i-1]:null,first=pts[0],isLast=i===pts.length-1,h="";
+  function renderStats(pts,i,b0,b1){
+    var id=selA,p=pts[i],prev=i>0?pts[i-1]:null,isLast=i===pts.length-1,h="";
+    b0=b0||{t:pts[0].t,v:pts[0][id]};
+    var pEnd=(isLast&&b1&&b1.edge)?b1:{t:p.t,v:p[id]};
     if(prev){
       var d=p[id]-prev[id],hr=(p.t-prev.t)/36e5;
       h+=tile(isLast?"Seit letzter Messung":"Zur Messung davor",fN(d),pc(d,prev[id])+", "+fR(d/hr)+", nach "+ago(p.t-prev.t),cls(d));
     }else h+=tile("Seit letzter Messung","–","erste Messung");
-    var ds0=new Date(p.t);ds0.setHours(0,0,0,0);
-    var dayStart=ds0.getTime(),base=null;
-    pts.forEach(function(q){if(!base&&q.t>=dayStart-TOL)base=q});
-    var tl0=new Date();tl0.setHours(0,0,0,0);
-    var dlab=dayStart===tl0.getTime()?"Heute":"Am "+fD(dayStart);
-    if(base&&p!==base){var d2=p[id]-base[id];h+=tile(dlab,fN(d2),pc(d2,base[id])+", seit "+fT(base.t)+" Uhr",cls(d2))}
+    var all=allSeriesC(id),ds0=dayStart(p.t),dsMs=ds0.getTime();
+    var nx=new Date(ds0);nx.setDate(nx.getDate()+1);
+    var v0=valueAt(all,dsMs),fromTxt="00:00";
+    if(v0===null){var bf=null;pts.forEach(function(q){if(!bf&&q.t>=dsMs)bf=q});if(bf&&bf!==p){v0=bf[id];fromTxt=fT(bf.t)}}
+    var tl0=dayStart(Date.now()).getTime(),dlab=dsMs===tl0?"Heute":"Am "+fD(dsMs);
+    var toTxt=(pEnd.edge&&pEnd.t===nx.getTime())?"24:00":fT(pEnd.t);
+    if(v0!==null&&(pEnd.v!==v0||pEnd.t>dsMs)){var d2=pEnd.v-v0;h+=tile(dlab,fN(Math.round(d2)),pc(d2,v0)+", "+fromTxt+" bis "+toTxt+" Uhr",cls(d2))}
     else h+=tile(dlab,"–","noch keine zweite Messung an diesem Tag");
-    var hrs=(p.t-first.t)/36e5;
-    if(hrs>0){var ph=(p[id]-first[id])/hrs;h+=tile("Ø pro Stunde",fR(ph),"über "+ago(p.t-first.t),cls(ph))}
+    var hrs=(pEnd.t-b0.t)/36e5;
+    if(hrs>0){var ph=(pEnd.v-b0.v)/hrs;h+=tile("Ø pro Stunde",fR(ph),"über "+ago(pEnd.t-b0.t),cls(ph))}
     else h+=tile("Ø pro Stunde","–","");
     h+=tile("Messung",fT(p.t)+" Uhr",isLast?"vor "+ago(Date.now()-p.t):fD(p.t));
     $("stats").innerHTML=h;
@@ -395,8 +418,15 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var S=ids.map(function(id){
       var pts=series(id);
       if(pts.length<2)return null;
-      var base=pts[0][id];
-      return{id:id,name:nameOf(id),pts:pts,ser:pts.map(function(p){return{t:p.t,v:p[id],y:rel?(base?(p[id]/base-1)*100:0):p[id]}})};
+      var ser=pts.map(function(p,i){return{t:p.t,v:p[id],i:i}});
+      if(range!=="all"){
+        var w=winFor(),all=allSeriesC(id),lastT=all[all.length-1].t,vs=valueAt(all,w.from);
+        if(vs!==null&&w.from<pts[0].t)ser.unshift({t:w.from,v:vs,i:-1,edge:true});
+        if(w.to<=lastT&&w.to>pts[pts.length-1].t){var ve=valueAt(all,w.to);if(ve!==null)ser.push({t:w.to,v:ve,i:-1,edge:true})}
+      }
+      var base=ser[0].v;
+      ser.forEach(function(q){q.y=rel?(base?(q.v/base-1)*100:0):q.v});
+      return{id:id,name:nameOf(id),pts:pts,ser:ser};
     }).filter(Boolean);
     if(!S.length){if(!rel)show(null);msg(box,"Noch zu wenig Daten. Es braucht mindestens zwei Messungen in diesem Zeitraum.");return}
     var single=rel?null:S[0];
@@ -406,7 +436,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var t0=Infinity,t1=-Infinity,mn=Infinity,mx=-Infinity,tset={};
     S.forEach(function(s){
       t0=Math.min(t0,s.ser[0].t);t1=Math.max(t1,s.ser[s.ser.length-1].t);
-      s.ser.forEach(function(q){mn=Math.min(mn,q.y);mx=Math.max(mx,q.y);tset[q.t]=1});
+      s.ser.forEach(function(q){mn=Math.min(mn,q.y);mx=Math.max(mx,q.y);if(!q.edge)tset[q.t]=1});
     });
     if(rel){mn=Math.min(mn,0);mx=Math.max(mx,0)}
     var times=Object.keys(tset).map(Number).sort(function(a,b){return a-b});
@@ -437,7 +467,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       s+='<path class="ln" style="stroke:'+col+';stroke-width:'+(single?2.6:2.4)+'" d="'+d+'"/>';
       if(q.ser.length<=1500){
         var rr=q.ser.length>300?1.5:q.ser.length>100?2.3:3.2;
-        q.ser.forEach(function(p){s+='<circle cx="'+X(p.t).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="'+rr+'" style="fill:'+col+';stroke:var(--surface);stroke-width:1.5"/>'});
+        q.ser.forEach(function(p){if(p.edge)return;s+='<circle cx="'+X(p.t).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="'+rr+'" style="fill:'+col+';stroke:var(--surface);stroke-width:1.5"/>'});
       }
     });
     if(rel){
@@ -454,12 +484,12 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     cur[kind]={S:S,single:single,times:times,X:X,Y:Y,t0:t0,span:span,W:W,R:R};
     if(rel)renderTable(S);
     if(single){
-      var vs=single.pts.map(function(p){return p[selA]}),diff=vs[vs.length-1]-vs[0],pct=vs[0]?diff/vs[0]*100:0;
+      var v0=single.ser[0].v,v1=single.ser[single.ser.length-1].v,diff=v1-v0,pct=v0?diff/v0*100:0;
       var dl2=$("delta");
       dl2.className="delta "+(diff?cls(diff):"flat");
-      dl2.textContent=fN(diff)+" ("+fPct(Math.abs(pct),1).replace(/^[+±]/,"")+")";
+      dl2.textContent=fN(Math.round(diff))+" ("+fPct(Math.abs(pct),1).replace(/^[+±]/,"")+")";
       show(single.pts[single.pts.length-1]);
-      renderStats(single.pts,single.pts.length-1);
+      renderStats(single.pts,single.pts.length-1,single.ser[0],single.ser[single.ser.length-1]);
       drawBars(single.pts,X,W,R);
     }
   }
@@ -497,9 +527,9 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       cx.style.visibility="hidden";hl.innerHTML="";
       if(kind==="rel")tip.hidden=true;
       else{
-        var cc0=svg.querySelector("#cc"),l0=c.single.ser[c.single.ser.length-1];
+        var cc0=svg.querySelector("#cc"),l0=c.single.ser.filter(function(q){return!q.edge}).pop();
         if(cc0){cc0.setAttribute("cx",c.X(l0.t));cc0.setAttribute("cy",c.Y(l0.y))}
-        show(c.single.pts[c.single.pts.length-1]);renderStats(c.single.pts,c.single.pts.length-1);hlBar(-1);
+        show(c.single.pts[c.single.pts.length-1]);renderStats(c.single.pts,c.single.pts.length-1,c.single.ser[0],c.single.ser[c.single.ser.length-1]);hlBar(-1);
       }
       return;
     }
@@ -509,11 +539,11 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     c.times.forEach(function(q){var d=Math.abs(q-t);if(d<best){best=d;tm=q}});
     cx.setAttribute("x1",c.X(tm));cx.setAttribute("x2",c.X(tm));cx.style.visibility="visible";
     if(kind==="abs"){
-      var ix=0;
-      c.single.ser.forEach(function(q,i){if(q.t<=tm)ix=i});
-      var q0=c.single.ser[ix],cc=svg.querySelector("#cc");
+      var q0=c.single.ser.filter(function(q){return!q.edge})[0],ix=q0.i;
+      c.single.ser.forEach(function(q){if(!q.edge&&q.t<=tm){q0=q;ix=q.i}});
+      var cc=svg.querySelector("#cc");
       if(cc){cc.setAttribute("cx",c.X(q0.t));cc.setAttribute("cy",c.Y(q0.y))}
-      show(c.single.pts[ix]);renderStats(c.single.pts,ix);hlBar(ix);
+      show(c.single.pts[ix]);renderStats(c.single.pts,ix,c.single.ser[0],c.single.ser[c.single.ser.length-1]);hlBar(ix);
       return;
     }
     var h="",rows='<div class="th">'+fDT(tm)+'</div>';
@@ -536,6 +566,106 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     el.addEventListener("pointerleave",function(e){hover(kind,e,true)});
   });
 
+
+  /* ---------- Top 5 ---------- */
+  var TOPURL="https://raw.githubusercontent.com/Stuermischer/pvphq-tracker/main/top.json";
+  var topData=null,allCache={};
+  function allSeriesC(id){return allCache[id]||(allCache[id]=allSeries(id))}
+  function loadTop(){
+    fetch(TOPURL+"?v="+Date.now(),{cache:"no-store"}).then(function(r){
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      return r.json();
+    }).then(function(j){topData=j;renderTop()}).catch(function(){});
+  }
+  function avatar(name){
+    var wrap=el("span","ic");wrap.style.width=wrap.style.height="24px";
+    var im=new Image();im.alt="";im.className="sk";im.style.width=im.style.height="24px";
+    im.onerror=function(){wrap.innerHTML="";var f=el("i","sk fb",name[0]);f.style.width=f.style.height="24px";wrap.appendChild(f)};
+    im.src="https://mc-heads.net/avatar/"+encodeURIComponent(name)+"/48";
+    wrap.appendChild(im);
+    return wrap;
+  }
+  function renderTop(){
+    var id=selA,list=$("topList"),logEl=$("topLog");
+    list.innerHTML="";logEl.innerHTML="";
+    var unit=id==="overall"?"Punkte":"TR";
+    $("topHint").textContent=nameOf(id)+", Stand der letzten Messung. Den Modus wählst du links bei Anzahl.";
+    var m=topData&&topData.modes&&topData.modes[id];
+    if(!m||!m.top||!m.top.length){list.appendChild(el("div","empty","Noch keine Top-5-Daten. Der Roboter speichert sie ab dem nächsten Lauf."));return}
+    var tb=el("table"),hd=el("thead");
+    hd.innerHTML='<tr><th>#</th><th>Spieler</th><th class="num">'+unit+'</th></tr>';
+    tb.appendChild(hd);
+    var body=el("tbody");
+    m.top.forEach(function(e,i){
+      var tr=el("tr"),c1=el("td","rk",String(i+1)),c2=el("td"),pl=el("div","pl");
+      pl.appendChild(avatar(e[0]));
+      pl.appendChild(el("span",null,e[0]));
+      if(e[2])pl.appendChild(el("span","tier",e[2]));
+      c2.appendChild(pl);
+      tr.appendChild(c1);tr.appendChild(c2);tr.appendChild(el("td","num",nf.format(e[1])));
+      body.appendChild(tr);
+    });
+    tb.appendChild(body);list.appendChild(tb);
+    var ev=(topData.log||[]).filter(function(e){return e.mode===id}).slice(-8).reverse();
+    logEl.appendChild(el("div","sec","Letzte Wechsel"));
+    if(!ev.length){logEl.appendChild(el("div","hint","Noch keine Wechsel seit dem Start."));return}
+    ev.forEach(function(e){
+      var r=el("div","rowm"),when=fD(e.t)+" "+fT(e.t)+" Uhr";
+      r.appendChild(el("span","r",when));
+      r.appendChild(el("span",null,e.kind==="leader"?e.to+" löst "+e.from+" an der Spitze ab":e.name+" steigt auf Platz "+e.rank+" ein"));
+      logEl.appendChild(r);
+    });
+  }
+
+  /* ---------- Zuwachs pro Tag / Woche (Mitternacht anteilig verteilt) ---------- */
+  function allSeries(id){
+    var out=[];
+    data.forEach(function(p){
+      if(!p||typeof p.t!=="number"||typeof p[id]!=="number")return;
+      out.push({t:p.t+((p.o&&p.o[id])||0)*1000,v:p[id]});
+    });
+    return out.sort(function(a,b){return a.t-b.t});
+  }
+  function valueAt(pts,t){
+    if(t<pts[0].t||t>pts[pts.length-1].t)return null;
+    for(var i=1;i<pts.length;i++){
+      if(pts[i].t>=t){var a=pts[i-1],b=pts[i];return b.t===a.t?b.v:a.v+(b.v-a.v)*(t-a.t)/(b.t-a.t)}
+    }
+    return pts[pts.length-1].v;
+  }
+
+  /* ---------- Anteil an Overall ---------- */
+  function ovAt(all,t){
+    var v=valueAt(all,t);
+    return v!==null?v:(t<all[0].t?all[0].v:all[all.length-1].v);
+  }
+  function renderShare(){
+    var box=$("shareBox");box.innerHTML="";
+    if(!loaded){msg(box,failed?"Verlauf konnte nicht geladen werden.":"Lade …");return}
+    var all=allSeriesC("overall");
+    if(!all.length){msg(box,"Noch keine Daten.");return}
+    var rows=[];
+    LADDERS.slice(1).forEach(function(l){
+      var id=l[0],sr=series(id);
+      if(!sr.length)return;
+      var f=sr[0],e=sr[sr.length-1],shE=e[id]/ovAt(all,e.t)*100;
+      rows.push({id:id,name:l[1],share:shE,count:e[id],d:sr.length>1?shE-f[id]/ovAt(all,f.t)*100:null});
+    });
+    if(!rows.length){msg(box,"Noch keine Daten in diesem Zeitraum.");return}
+    rows.sort(function(a,b){return b.share-a.share});
+    rows.forEach(function(r){
+      var row=el("div","shr");
+      row.appendChild(icon(r.id));
+      row.appendChild(el("span",null,r.name));
+      var bar=el("div","bar2"),fill=el("i");fill.style.width=Math.min(100,r.share).toFixed(1)+"%";bar.appendChild(fill);
+      row.appendChild(bar);
+      row.appendChild(el("span","num",r.share.toFixed(1).replace(".",",")+" %"));
+      var rd=r.d===null?null:Math.round(r.d*100)/100;
+      var dd=rd===null?"–":(rd>0?"+":rd<0?"−":"±")+Math.abs(rd).toFixed(2).replace(".",",")+" PP";
+      row.appendChild(el("span","num "+(rd===null?"":cls(rd)),dd));
+      box.appendChild(row);
+    });
+  }
   /* ---------- Gesamt ---------- */
   function render(){
     renderSections();
@@ -544,6 +674,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     renderNav();
     buildModesA();buildModesB();
     renderGraph("abs");renderGraph("rel");
+    renderTop();renderShare();
   }
   function load(){
     var btn=$("refresh");
@@ -555,7 +686,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       if(!r.ok)throw new Error("HTTP "+r.status);
       return r.json();
     }).then(function(h){
-      data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];loaded=true;failed="";
+      allCache={};data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];loaded=true;failed="";
       $("status").textContent="Aktualisiert um "+fT(Date.now())+" Uhr, "+data.length+" Messungen insgesamt";
     }).catch(function(e){
       clearTimeout(timer);failed=e&&e.message?e.message:"Fehler";
@@ -806,9 +937,9 @@ const CHAMPS = {
   });
 
   var rt;
-  window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){if(section==="champs")renderBracket();else{renderGraph("abs");renderGraph("rel")}},150)});
-  $("refresh").addEventListener("click",load);
-  render();load();
+  window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){if(section==="champs")renderBracket();else{renderGraph("abs");renderGraph("rel");renderShare()}},150)});
+  $("refresh").addEventListener("click",function(){load();loadTop()});
+  render();load();loadTop();
 })();
 </script>
 </body>
