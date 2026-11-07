@@ -1,3 +1,4 @@
+
 import datetime
 import html as htmllib
 import json
@@ -28,7 +29,6 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; pvphq-tracker/1.0)"}
 PASSES = 4  # Durchgänge: Fehlende Modi werden nach einer Pause erneut abgefragt
 PAUSE = 30  # Sekunden Pause vor dem nächsten Durchgang (wird jedes Mal länger)
 DELAY = 2  # Sekunden Abstand zwischen zwei Anfragen, damit kein Rate Limit ausgelöst wird
-MAX_JUMP = 0.25  # Zahlen, die mehr als 25 % vom letzten Wert abweichen, gelten als fehlerhaft geladen
 DEADLINE = time.time() + 14 * 60  # danach keine weiteren Durchgänge
 
 # Messungen vor dem 04.11.2026, 16:00 Uhr (MEZ) werden entfernt (die Messung um 16:20 bleibt)
@@ -79,13 +79,6 @@ def load_json(path, default):
         return default
 
 
-def last_value(history, name):
-    for p in reversed(history):
-        if isinstance(p.get(name), int):
-            return p[name]
-    return None
-
-
 try:
     with open("history.json", encoding="utf-8") as f:
         history = json.load(f)
@@ -115,14 +108,12 @@ for attempt in range(PASSES):
         time.sleep(DELAY)
         if n is None:
             continue
-        last = last_value(history, name)
-        if last and abs(n - last) / last > MAX_JUMP:
-            print(f"{name}: {n} weicht stark von {last} ab, verworfen", file=sys.stderr)
-            continue
+
         found[name] = n
         tops[name] = parse_top(page)
         when[name] = time.time()
         todo.remove(name)
+
     if not todo or time.time() > DEADLINE or attempt == PASSES - 1:
         break
     time.sleep(PAUSE * (attempt + 1))
