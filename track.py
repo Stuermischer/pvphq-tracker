@@ -28,7 +28,8 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; pvphq-tracker/1.0)"}
 PASSES = 4  # Durchgänge: Fehlende Modi werden nach einer Pause erneut abgefragt
 PAUSE = 30  # Sekunden Pause vor dem nächsten Durchgang (wird jedes Mal länger)
 DELAY = 2  # Sekunden Abstand zwischen zwei Anfragen, damit kein Rate Limit ausgelöst wird
-MAX_JUMP = 0.25  # einzelne Zahlen, die mehr als 25 % vom letzten Wert abweichen, gelten als fehlerhaft geladen
+MAX_JUMP = 0.25  # Zahlen, die mehr als 25 % UNTER dem letzten Wert liegen, gelten als fehlerhaft geladen
+# (Anstiege werden immer angenommen: nach einem Reset wächst die Zahl der gerankten Spieler sehr schnell)
 RESET_MIN = 9  # fallen so viele Modi gleichzeitig stark ab, ist es ein Reset der Seite, kein Ladefehler
 DEADLINE = time.time() + 14 * 60  # danach keine weiteren Durchgänge
 
@@ -200,8 +201,8 @@ for attempt in range(PASSES):
         if n is None:
             continue
         last = last_value(history, name)
-        if last and abs(n - last) / last > MAX_JUMP:
-            print(f"{name}: {n} weicht stark von {last} ab, verworfen", file=sys.stderr)
+        if last and n < last * (1 - MAX_JUMP):
+            print(f"{name}: {n} liegt weit unter dem letzten Wert {last}, verworfen", file=sys.stderr)
             rejected[name] = (n, time.time())
             continue
         rejected.pop(name, None)
