@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PvPHQ Ranked Verlauf</title>
+<title>PvPHQ Ranked History</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;800&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
 :root{--bg:#F2F4F6;--surface:#FFFFFF;--ink:#1B2430;--muted:#5B6B7A;--line:#DDE2E7;--accent:#DD7E46;--up:#23875A;--down:#C2453A;--chip:#E6EAEE;
@@ -119,10 +119,6 @@ td.up{color:var(--up)}td.down{color:var(--down)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .rowm{display:flex;gap:10px;padding:8px 12px;border-radius:10px;background:var(--chip);margin-bottom:6px;font-size:14px}
 .rowm .r{color:var(--muted);font-size:12px;width:110px;flex:none}
-.tag{display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:var(--chip);padding:4px 6px 4px 12px;margin:0 6px 6px 0;font-size:13px}
-.tag button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
-.addrow{display:flex;gap:8px;margin-top:6px}
-.addrow input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
 .hint{color:var(--muted);font-size:13px;margin:0}
 .rk{width:28px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tier{display:inline-block;min-width:30px;text-align:center;font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted)}
@@ -140,15 +136,15 @@ td.up{color:var(--up)}td.down{color:var(--down)}
 <body>
 <main>
   <div class="top">
-    <div><h1>PvPHQ</h1><p class="sub" id="subtitle">Verlauf der gerankten Spieler, stündlich</p></div>
+    <div><h1>PvPHQ</h1><p class="sub" id="subtitle">History of ranked players, hourly</p></div>
   </div>
-  <nav class="tabs" id="sections" role="tablist" aria-label="Bereich"></nav>
+  <nav class="tabs" id="sections" role="tablist" aria-label="Section"></nav>
   <div id="secRanked">
-  <div class="toolbar"><span class="lbl">Zeitraum</span><div class="chips" id="ranges"></div><div class="rnav" id="rnav"></div></div>
+  <div class="toolbar"><span class="lbl">Period</span><div class="chips" id="ranges"></div><div class="rnav" id="rnav"></div></div>
   <div class="cols">
     <section class="card">
-      <h2>Anzahl</h2>
-      <p class="hint">Wähle einen Modus.</p>
+      <h2>Count</h2>
+      <p class="hint">Choose a mode.</p>
       <div class="chips" id="modesA"></div>
       <div class="name" id="cname">Overall</div>
       <div class="head"><div class="val" id="val">–</div><div class="delta" id="delta"></div></div>
@@ -158,8 +154,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       <div class="bars" id="bars"></div>
     </section>
     <section class="card">
-      <h2>Relativer Vergleich</h2>
-      <p class="hint">Veränderung in Prozent seit Beginn des Zeitraums. Wähle beliebig viele Modi.</p>
+      <h2>Relative comparison</h2>
+      <p class="hint">Change in percent since the start of the period. Choose as many modes as you like.</p>
       <div class="chips" id="modesB"></div>
       <div class="plot" style="margin-top:16px"><div class="chart" id="chartB"></div><div class="tip" id="tip" hidden></div></div>
       <div id="tbl"></div>
@@ -173,20 +169,20 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       <div id="topLog"></div>
     </section>
     <section class="card">
-      <h2>Anteil an Overall</h2>
-      <p class="hint">Wie viel Prozent aller gerankten Spieler (Overall) in einem Modus gerankt sind. Die Prozente ergeben zusammen mehr als 100 %, weil ein Spieler in mehreren Modi gerankt sein kann. Die Veränderung in Prozentpunkten (PP) gilt für den gewählten Zeitraum.</p>
+      <h2>Share of Overall</h2>
+      <p class="hint">What percentage of all ranked players (Overall) are ranked in a mode. The percentages add up to more than 100% because a player can be ranked in several modes. The change in percentage points (pp) applies to the selected period.</p>
       <div id="shareBox"></div>
     </section>
   </div>
   <div class="foot">
-    <button class="btn" id="refresh" type="button">Aktualisieren</button>
+    <button class="btn" id="refresh" type="button">Refresh</button>
     <div id="status"></div>
   </div>
   </div>
   <div id="secChamps" hidden>
     <section class="card">
       <div class="chrow">
-        <div><h2>PvPChamps</h2><p class="hint">Klicke auf ein Match für Details, Bans und Gamemodes.</p></div>
+        <div><h2>PvPChamps</h2><p class="hint">Click a match for details.</p></div>
         <div class="chips" id="chTabs"></div>
       </div>
       <div class="champ" id="champBanner"></div>
@@ -201,8 +197,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     ["overall","Overall"],["sword","Sword"],["axe","Axe"],["mace","Mace"],["spear_mace","Spear"],["uhc","UHC"],
     ["netherite_pot","NethPot"],["pot","Pot"],["smp","SMP"],["diamond_smp","DiaSMP"],["vanilla","Vanilla"],["cart","Cart"]
   ];
-  var RANGES=[["day","Tag"],["week","Woche"],["all","Alles"]];
-  var DATA_FROM=Date.parse("2026-11-04T16:00:00+01:00"); /* ältere Messungen werden ausgeblendet */
+  var RANGES=[["day","Day"],["week","Week"],["all","All"]];
+  var DATA_FROM=Date.parse("2026-11-08T00:00:00+01:00"); /* older measurements are hidden */
   var COLORS={overall:"var(--ink)",sword:"hsl(8 75% 58%)",axe:"hsl(30 85% 55%)",mace:"hsl(48 85% 50%)",spear_mace:"hsl(80 60% 50%)",uhc:"hsl(130 55% 48%)",netherite_pot:"hsl(165 60% 45%)",pot:"hsl(190 70% 50%)",smp:"hsl(215 75% 60%)",diamond_smp:"hsl(250 70% 65%)",vanilla:"hsl(280 60% 62%)",cart:"hsl(325 70% 62%)"};
   var P='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
   var POT='<path d="M10 3h4M11 3v5l-4.5 8a3 3 0 0 0 2.6 4.5h5.8a3 3 0 0 0 2.6-4.5L13 8V3"/>';
@@ -222,29 +218,30 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   };
   var IMG={overall:"pvphq-logo.png",spear_mace:"modes/spear.png",diamond_smp:"modes/diasmp.png",netherite_pot:"modes/nethpot.png",vanilla:"modes/crystal.png"};
   var HURL="https://raw.githubusercontent.com/Stuermischer/pvphq-tracker/main/history.json";
-  var nf=new Intl.NumberFormat("de-DE");
+  var nf=new Intl.NumberFormat("en-US");
   var L=58,T=14,B=28;
-  var TOL=30*6e4; /* Toleranz: Messungen kommen bis zu ca. 30 Min. zu spät */
+  var TOL=30*6e4; /* tolerance: measurements can arrive up to about 30 min late */
   var data=[],selA="overall",onB={},range="all",off=0,loaded=false,failed="",cur={};
   LADDERS.forEach(function(l){onB[l[0]]=true});
   var $=function(id){return document.getElementById(id)};
 
   function two(n){return(n<10?"0":"")+n}
-  function fD(t){var d=new Date(t);return two(d.getDate())+"."+two(d.getMonth()+1)+"."}
+  var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fD(t){var d=new Date(t);return MON[d.getMonth()]+" "+d.getDate()}
   function fT(t){var d=new Date(t);return two(d.getHours())+":"+two(d.getMinutes())}
-  function fDT(t){return fD(t)+" "+fT(t)+" Uhr"}
+  function fDT(t){return fD(t)+", "+fT(t)}
   function nameOf(id){return LADDERS.filter(function(l){return l[0]===id})[0][1]}
   function sgn(v){return v>0?"+":v<0?"−":"±"}
   function fN(v){return sgn(v)+nf.format(Math.abs(v))}
-  function fR(v){var a=Math.abs(v);return sgn(v)+nf.format(a>=100?Math.round(a):Math.round(a*10)/10)+"/Std."}
-  function fPct(v,dec){return sgn(v)+Math.abs(v).toFixed(dec).replace(".",",")+" %"}
+  function fR(v){var a=Math.abs(v);return sgn(v)+nf.format(a>=100?Math.round(a):Math.round(a*10)/10)+"/h"}
+  function fPct(v,dec){return sgn(v)+Math.abs(v).toFixed(dec)+"%"}
   function cls(v){return v>0?"up":v<0?"down":""}
   function ago(ms){
     var m=Math.max(0,Math.round(ms/6e4));
-    if(m<60)return m+" Min.";
+    if(m<60)return m+" min";
     var h=Math.floor(m/60);m=m%60;
-    if(h<48)return h+" Std."+(m?" "+m+" Min.":"");
-    return Math.floor(h/24)+" Tage";
+    if(h<48)return h+" h"+(m?" "+m+" min":"");
+    return Math.floor(h/24)+" days";
   }
   function pc(d,base){return base?fPct(d/base*100,2):""}
 
@@ -288,8 +285,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   }
   function buildModesB(){
     var el=$("modesB");el.innerHTML="";
-    ghost(el,"Alle",function(){LADDERS.forEach(function(l){onB[l[0]]=true});render()});
-    ghost(el,"Keine",function(){onB={};render()});
+    ghost(el,"All",function(){LADDERS.forEach(function(l){onB[l[0]]=true});render()});
+    ghost(el,"None",function(){onB={};render()});
     LADDERS.forEach(function(l){
       var id=l[0],c=COLORS[id];
       el.appendChild(modeChip(id,l[1],!!onB[id],"background:color-mix(in srgb,"+c+" 22%,var(--surface));box-shadow:inset 0 0 0 2px "+c+";opacity:1",function(){onB[id]=!onB[id];render()}));
@@ -311,13 +308,13 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   function navLabel(){
     var w=winFor();
     if(range==="day"){
-      if(off===0)return"Heute";
-      if(off===-1)return"Gestern";
-      return["So","Mo","Di","Mi","Do","Fr","Sa"][new Date(w.from).getDay()]+" "+fD(w.from);
+      if(off===0)return"Today";
+      if(off===-1)return"Yesterday";
+      return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(w.from).getDay()]+" "+fD(w.from);
     }
-    var kw="KW "+isoWeek(w.from);
-    if(off===0)return"Diese Woche ("+kw+")";
-    if(off===-1)return"Letzte Woche ("+kw+")";
+    var kw="Week "+isoWeek(w.from);
+    if(off===0)return"This week ("+kw+")";
+    if(off===-1)return"Last week ("+kw+")";
     return kw+" ("+fD(w.from)+"–"+fD(w.to-1)+")";
   }
   function canPrev(){
@@ -331,7 +328,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     box.hidden=false;
     var pv=el("button","chip","‹"),nx=el("button","chip","›"),lb=el("span","navl",navLabel());
     pv.type=nx.type="button";
-    pv.setAttribute("aria-label","Früher");nx.setAttribute("aria-label","Später");
+    pv.setAttribute("aria-label","Earlier");nx.setAttribute("aria-label","Later");
     pv.disabled=!canPrev();nx.disabled=off>=0;
     pv.addEventListener("click",function(){off--;render()});
     nx.addEventListener("click",function(){off++;render()});
@@ -360,20 +357,20 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var pEnd=(isLast&&b1&&b1.edge)?b1:{t:p.t,v:p[id]};
     if(prev){
       var d=p[id]-prev[id],hr=(p.t-prev.t)/36e5;
-      h+=tile(isLast?"Seit letzter Messung":"Zur Messung davor",fN(d),pc(d,prev[id])+", "+fR(d/hr)+", nach "+ago(p.t-prev.t),cls(d));
-    }else h+=tile("Seit letzter Messung","–","erste Messung");
+      h+=tile(isLast?"Since last measurement":"Vs. previous measurement",fN(d),pc(d,prev[id])+", "+fR(d/hr)+", after "+ago(p.t-prev.t),cls(d));
+    }else h+=tile("Since last measurement","–","first measurement");
     var all=allSeriesC(id),ds0=dayStart(p.t),dsMs=ds0.getTime();
     var nx=new Date(ds0);nx.setDate(nx.getDate()+1);
     var v0=valueAt(all,dsMs),fromTxt="00:00";
     if(v0===null){var bf=null;pts.forEach(function(q){if(!bf&&q.t>=dsMs)bf=q});if(bf&&bf!==p){v0=bf[id];fromTxt=fT(bf.t)}}
-    var tl0=dayStart(Date.now()).getTime(),dlab=dsMs===tl0?"Heute":"Am "+fD(dsMs);
+    var tl0=dayStart(Date.now()).getTime(),dlab=dsMs===tl0?"Today":"On "+fD(dsMs);
     var toTxt=(pEnd.edge&&pEnd.t===nx.getTime())?"24:00":fT(pEnd.t);
-    if(v0!==null&&(pEnd.v!==v0||pEnd.t>dsMs)){var d2=pEnd.v-v0;h+=tile(dlab,fN(Math.round(d2)),pc(d2,v0)+", "+fromTxt+" bis "+toTxt+" Uhr",cls(d2))}
-    else h+=tile(dlab,"–","noch keine zweite Messung an diesem Tag");
+    if(v0!==null&&(pEnd.v!==v0||pEnd.t>dsMs)){var d2=pEnd.v-v0;h+=tile(dlab,fN(Math.round(d2)),pc(d2,v0)+", "+fromTxt+" to "+toTxt,cls(d2))}
+    else h+=tile(dlab,"–","no second measurement on this day yet");
     var hrs=(pEnd.t-b0.t)/36e5;
-    if(hrs>0){var ph=(pEnd.v-b0.v)/hrs;h+=tile("Ø pro Stunde",fR(ph),"über "+ago(pEnd.t-b0.t),cls(ph))}
-    else h+=tile("Ø pro Stunde","–","");
-    h+=tile("Messung",fT(p.t)+" Uhr",isLast?"vor "+ago(Date.now()-p.t):fD(p.t));
+    if(hrs>0){var ph=(pEnd.v-b0.v)/hrs;h+=tile("Avg. per hour",fR(ph),"over "+ago(pEnd.t-b0.t),cls(ph))}
+    else h+=tile("Avg. per hour","–","");
+    h+=tile("Measurement",fT(p.t),isLast?ago(Date.now()-p.t)+" ago":fD(p.t));
     $("stats").innerHTML=h;
   }
   function drawBars(pts,X,W,R){
@@ -384,8 +381,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var mx=Math.max.apply(null,ds.concat([1])),mn=Math.min.apply(null,ds.concat([0]));
     var H2=120,T2=10,B2=10;
     function Y2(v){return T2+(1-(v-mn)/(mx-mn))*(H2-T2-B2)}
-    var g='<div class="note">Zuwachs pro Stunde, jeweils über den Abstand zwischen zwei Messungen.</div>';
-    g+='<svg viewBox="0 0 '+W+' '+H2+'" role="img" aria-label="Zuwachs pro Stunde">';
+    var g='<div class="note">Gain per hour, over the interval between two measurements.</div>';
+    g+='<svg viewBox="0 0 '+W+' '+H2+'" role="img" aria-label="Gain per hour">';
     g+='<line class="g" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y2(0).toFixed(1)+'" y2="'+Y2(0).toFixed(1)+'"/>';
     g+='<text class="t" x="'+(L-8)+'" y="'+(T2+4)+'" text-anchor="end">'+fR(mx)+'</text>';
     g+='<text class="t" x="'+(L-8)+'" y="'+(Y2(0)+4).toFixed(1)+'" text-anchor="end">0</text>';
@@ -413,8 +410,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       $("cname").textContent=nameOf(selA);
     }
     var ids=rel?LADDERS.map(function(l){return l[0]}).filter(function(id){return onB[id]}):[selA];
-    if(!loaded){if(!rel)show(null);msg(box,failed?"Verlauf konnte nicht geladen werden.":"Lade …");return}
-    if(!ids.length){msg(box,"Wähle oben mindestens einen Modus aus.");return}
+    if(!loaded){if(!rel)show(null);msg(box,failed?"Could not load history.":"Loading …");return}
+    if(!ids.length){msg(box,"Choose at least one mode above.");return}
     var S=ids.map(function(id){
       var pts=series(id);
       if(pts.length<2)return null;
@@ -428,7 +425,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       ser.forEach(function(q){q.y=rel?(base?(q.v/base-1)*100:0):q.v});
       return{id:id,name:nameOf(id),pts:pts,ser:ser};
     }).filter(Boolean);
-    if(!S.length){if(!rel)show(null);msg(box,"Noch zu wenig Daten. Es braucht mindestens zwei Messungen in diesem Zeitraum.");return}
+    if(!S.length){if(!rel)show(null);msg(box,"Not enough data yet. At least two measurements are needed in this period.");return}
     var single=rel?null:S[0];
     var R=rel?112:20;
     var cw=Math.round(box.clientWidth),W=cw>200?cw:340;
@@ -448,7 +445,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     function Y(v){return T+(1-(v-mn)/(mx-mn))*(H-T-B)}
     function fy(v){return rel?fPct(v,dec):nf.format(Math.round(v))}
     var base=H-B,gid="gr"+kind;
-    var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Verlauf der gerankten Spieler">';
+    var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="History of ranked players">';
     s+='<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.35"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>';
     for(var k=0;k<5;k++){
       var v=mn+(mx-mn)*k/4,y=Y(v).toFixed(1);
@@ -501,9 +498,9 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       return{id:s.id,name:s.name,now:b,d:b-a,pct:a?(b/a-1)*100:0,rate:hrs>0?(b-a)/hrs:0};
     }).sort(function(x,y){return y.pct-x.pct});
     var note=document.createElement("div");note.className="note";
-    note.textContent="Im gewählten Zeitraum, sortiert nach relativem Wachstum.";
+    note.textContent="In the selected period, sorted by relative growth.";
     var tb=document.createElement("table");
-    tb.innerHTML='<thead><tr><th>Modus</th><th class="num">Aktuell</th><th class="num">Veränderung</th><th class="num">in %</th><th class="num">pro Std.</th></tr></thead>';
+    tb.innerHTML='<thead><tr><th>Mode</th><th class="num">Current</th><th class="num">Change</th><th class="num">in %</th><th class="num">per hour</th></tr></thead>';
     var body=document.createElement("tbody");
     rows.forEach(function(r){
       var tr=document.createElement("tr"),td=document.createElement("td"),mn=document.createElement("div");
@@ -588,12 +585,12 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   function renderTop(){
     var id=selA,list=$("topList"),logEl=$("topLog");
     list.innerHTML="";logEl.innerHTML="";
-    var unit=id==="overall"?"Punkte":"TR";
-    $("topHint").textContent=nameOf(id)+", Stand der letzten Messung. Den Modus wählst du links bei Anzahl.";
+    var unit=id==="overall"?"Points":"TR";
+    $("topHint").textContent=nameOf(id)+", as of the last measurement. Choose the mode on the left under Count.";
     var m=topData&&topData.modes&&topData.modes[id];
-    if(!m||!m.top||!m.top.length){list.appendChild(el("div","empty","Noch keine Top-5-Daten. Der Roboter speichert sie ab dem nächsten Lauf."));return}
+    if(!m||!m.top||!m.top.length){list.appendChild(el("div","empty","No top 5 data yet. The robot saves it from its next run."));return}
     var tb=el("table"),hd=el("thead");
-    hd.innerHTML='<tr><th>#</th><th>Spieler</th><th class="num">'+unit+'</th></tr>';
+    hd.innerHTML='<tr><th>#</th><th>Player</th><th class="num">'+unit+'</th></tr>';
     tb.appendChild(hd);
     var body=el("tbody");
     m.top.forEach(function(e,i){
@@ -607,12 +604,12 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     });
     tb.appendChild(body);list.appendChild(tb);
     var ev=(topData.log||[]).filter(function(e){return e.mode===id}).slice(-8).reverse();
-    logEl.appendChild(el("div","sec","Letzte Wechsel"));
-    if(!ev.length){logEl.appendChild(el("div","hint","Noch keine Wechsel seit dem Start."));return}
+    logEl.appendChild(el("div","sec","Recent changes"));
+    if(!ev.length){logEl.appendChild(el("div","hint","No changes since the start."));return}
     ev.forEach(function(e){
-      var r=el("div","rowm"),when=fD(e.t)+" "+fT(e.t)+" Uhr";
+      var r=el("div","rowm"),when=fD(e.t)+", "+fT(e.t);
       r.appendChild(el("span","r",when));
-      r.appendChild(el("span",null,e.kind==="leader"?e.to+" löst "+e.from+" an der Spitze ab":e.name+" steigt auf Platz "+e.rank+" ein"));
+      r.appendChild(el("span",null,e.kind==="leader"?e.to+" takes the lead from "+e.from:e.name+" enters at rank "+e.rank));
       logEl.appendChild(r);
     });
   }
@@ -641,9 +638,9 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   }
   function renderShare(){
     var box=$("shareBox");box.innerHTML="";
-    if(!loaded){msg(box,failed?"Verlauf konnte nicht geladen werden.":"Lade …");return}
+    if(!loaded){msg(box,failed?"Could not load history.":"Loading …");return}
     var all=allSeriesC("overall");
-    if(!all.length){msg(box,"Noch keine Daten.");return}
+    if(!all.length){msg(box,"No data yet.");return}
     var rows=[];
     LADDERS.slice(1).forEach(function(l){
       var id=l[0],sr=series(id);
@@ -651,7 +648,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       var f=sr[0],e=sr[sr.length-1],shE=e[id]/ovAt(all,e.t)*100;
       rows.push({id:id,name:l[1],share:shE,count:e[id],d:sr.length>1?shE-f[id]/ovAt(all,f.t)*100:null});
     });
-    if(!rows.length){msg(box,"Noch keine Daten in diesem Zeitraum.");return}
+    if(!rows.length){msg(box,"No data in this period yet.");return}
     rows.sort(function(a,b){return b.share-a.share});
     rows.forEach(function(r){
       var row=el("div","shr");
@@ -659,9 +656,9 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       row.appendChild(el("span",null,r.name));
       var bar=el("div","bar2"),fill=el("i");fill.style.width=Math.min(100,r.share).toFixed(1)+"%";bar.appendChild(fill);
       row.appendChild(bar);
-      row.appendChild(el("span","num",r.share.toFixed(1).replace(".",",")+" %"));
+      row.appendChild(el("span","num",r.share.toFixed(1)+"%"));
       var rd=r.d===null?null:Math.round(r.d*100)/100;
-      var dd=rd===null?"–":(rd>0?"+":rd<0?"−":"±")+Math.abs(rd).toFixed(2).replace(".",",")+" PP";
+      var dd=rd===null?"–":(rd>0?"+":rd<0?"−":"±")+Math.abs(rd).toFixed(2)+" pp";
       row.appendChild(el("span","num "+(rd===null?"":cls(rd)),dd));
       box.appendChild(row);
     });
@@ -678,7 +675,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   }
   function load(){
     var btn=$("refresh");
-    btn.disabled=true;$("status").textContent="Lade …";
+    btn.disabled=true;$("status").textContent="Loading …";
     var ctrl=typeof AbortController!=="undefined"?new AbortController():null;
     var timer=setTimeout(function(){if(ctrl)ctrl.abort()},10000);
     fetch(HURL+"?v="+Date.now(),{cache:"no-store",signal:ctrl?ctrl.signal:undefined}).then(function(r){
@@ -687,10 +684,10 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       return r.json();
     }).then(function(h){
       allCache={};data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];loaded=true;failed="";
-      $("status").textContent="Aktualisiert um "+fT(Date.now())+" Uhr, "+data.length+" Messungen insgesamt";
+      $("status").textContent="Updated at "+fT(Date.now())+", "+data.length+" measurements in total";
     }).catch(function(e){
-      clearTimeout(timer);failed=e&&e.message?e.message:"Fehler";
-      $("status").textContent="Verlauf konnte nicht von GitHub geladen werden ("+failed+").";
+      clearTimeout(timer);failed=e&&e.message?e.message:"Error";
+      $("status").textContent="Could not load history from GitHub ("+failed+").";
     }).then(function(){btn.disabled=false;render()});
   }
 
@@ -740,11 +737,8 @@ const CHAMPS = {
   Object.keys(CHAMPS).forEach(function(c){CHAMPS[c].matches.forEach(function(m){m.c=+c;m.t=c*100+ORD[m.br+m.rd]})});
   var BRN={U:"Upper Bracket",L:"Lower Bracket",GF:"Grand Final"};
   function winnerOf(m){return m.sa>m.sb?m.a:m.b}
-  var section=location.hash==="#champs"?"champs":"ranked",chTab=2,chEx={};
-  try{chEx=JSON.parse(localStorage.getItem("pvpchamps:v1"))||{}}catch(e){}
-  function chSave(){try{localStorage.setItem("pvpchamps:v1",JSON.stringify(chEx))}catch(e){}}
-  function chData(m){var d=chEx[m.c+"-"+m.id]||{};return{bans:(d.bans||[]).slice(),modes:(d.modes||[]).slice()}}
-  function allMatches(){
+  var section=location.hash==="#champs"?"champs":"ranked",chTab=2;
+    function allMatches(){
     var out=[];
     Object.keys(CHAMPS).forEach(function(c){CHAMPS[c].matches.forEach(function(m){out.push(m)})});
     return out;
@@ -772,7 +766,8 @@ const CHAMPS = {
     setP(28,4,avgY(26,27));setP(29,5,pos[28].y);setP(30,5,avgY(15,29));
   })();
   var LINKS=[[1,9],[2,9],[3,10],[4,10],[5,11],[6,11],[7,12],[8,12],[9,13],[10,13],[11,14],[12,14],[13,15],[14,15],[16,20],[17,21],[18,22],[19,23],[20,24],[21,24],[22,25],[23,25],[24,26],[25,27],[26,28],[27,28],[28,29]];
-  var LBL=[["Runde 1","Runde 2","Halbfinale","Finale"],["Runde 1","Runde 2","Runde 3","Runde 4","Runde 5","Finale"]];
+  var LBL=[["Round 1","Round 2","Semifinal","Final"],["Round 1","Round 2","Round 3","Round 4","Round 5","Final"]];
+  function rdEn(r){return r.replace("Runde","Round").replace("Halbfinale","Semifinal").replace(/^Finale$/,"Final")}
 
   function renderBracket(){
     var c=chTab,ms=allMatches().filter(function(m){return m.c===c}),box=$("bracket");
@@ -805,7 +800,7 @@ const CHAMPS = {
       var q=pos[m.id],aw=m.sa>m.sb;
       var b=el("button","mc"+(m.br==="L"?" lo":"")+(inv(m.id)?" chm":""));
       b.type="button";b.style.left=q.x+"px";b.style.top=(q.y-23)+"px";
-      b.setAttribute("aria-label",m.a+" "+m.sa+" zu "+m.sb+" "+m.b);
+      b.setAttribute("aria-label",m.a+" "+m.sa+" to "+m.sb+" "+m.b);
       [[m.a,m.sa,aw],[m.b,m.sb,!aw]].forEach(function(r){
         var row=el("div","pr"+(r[2]?" w":""));
         row.appendChild(skin(r[0],m.c,18));
@@ -828,7 +823,7 @@ const CHAMPS = {
     var t=el("div");
     var line=el("div");line.appendChild(document.createTextNode("🏆 Champion: "));line.appendChild(el("b",null,w));
     t.appendChild(line);
-    t.appendChild(el("div","sub2","Grand Final "+ws+":"+ls+" gegen "+l));
+    t.appendChild(el("div","sub2","Grand Final "+ws+":"+ls+" vs "+l));
     b.appendChild(t);
   }
   function renderChamps(){
@@ -842,34 +837,6 @@ const CHAMPS = {
     return g;
   }
   function tile2(k,v){var t=el("div","tile");t.appendChild(el("div","k",k));t.appendChild(el("div","n",String(v)));return t}
-  function tagEditor(key,ph,m){
-    var wrap=el("div"),list=el("div");
-    wrap.appendChild(list);
-    function draw(){
-      list.innerHTML="";
-      var items=chData(m)[key];
-      if(!items.length)list.appendChild(el("div","hint","noch nichts eingetragen"));
-      items.forEach(function(t,i){
-        var tag=el("span","tag",t),b=el("button",null,"×");
-        b.type="button";b.setAttribute("aria-label",t+" entfernen");
-        b.addEventListener("click",function(){
-          var d=chData(m);d[key].splice(i,1);chEx[m.c+"-"+m.id]=d;chSave();draw();
-        });
-        tag.appendChild(b);list.appendChild(tag);
-      });
-    }
-    var row=el("div","addrow"),inp=document.createElement("input"),add=el("button","chip on","+");
-    inp.placeholder=ph;add.type="button";add.setAttribute("aria-label","hinzufügen");
-    function doAdd(){
-      var t=inp.value.trim();if(!t)return;
-      var d=chData(m);d[key].push(t);chEx[m.c+"-"+m.id]=d;chSave();inp.value="";draw();
-    }
-    add.addEventListener("click",doAdd);
-    inp.addEventListener("keydown",function(e){if(e.key==="Enter")doAdd()});
-    row.appendChild(inp);row.appendChild(add);wrap.appendChild(row);
-    draw();
-    return wrap;
-  }
   function closeDetail(){var ov=$("ov");ov.hidden=true;ov.innerHTML=""}
   function openDetail(m){
     var all=allMatches(),ov=$("ov");
@@ -884,30 +851,26 @@ const CHAMPS = {
     var meet=all.filter(function(x){return(x.c!==m.c||x.id!==m.id)&&((x.a===m.a&&x.b===m.b)||(x.a===m.b&&x.b===m.a))}).sort(function(x,y){return x.t-y.t});
     ov.innerHTML="";ov.hidden=false;
     var dlg=el("div","dlg"),x=el("button","x","×");
-    x.type="button";x.setAttribute("aria-label","Schließen");x.addEventListener("click",closeDetail);
+    x.type="button";x.setAttribute("aria-label","Close");x.addEventListener("click",closeDetail);
     dlg.appendChild(x);
-    dlg.appendChild(el("div","hint","PvPChamps "+m.c+", "+BRN[m.br]+", "+m.rd));
+    dlg.appendChild(el("div","hint","PvPChamps "+m.c+", "+BRN[m.br]+", "+rdEn(m.rd)));
     var big=el("div","big"),pa=el("div","p"),pb=el("div","p r");
     pa.appendChild(skin(m.a,m.c,36));pa.appendChild(el("span",null,m.a));
     pb.appendChild(el("span",null,m.b));pb.appendChild(skin(m.b,m.c,36));
     big.appendChild(pa);big.appendChild(el("div","sc",m.sa+" : "+m.sb));big.appendChild(pb);
     dlg.appendChild(big);
-    dlg.appendChild(tiles([["Sieger",winnerOf(m)],["Games",m.sa+m.sb],["Differenz",Math.abs(m.sa-m.sb)]]));
-    dlg.appendChild(el("div","sec","Bilanz im Turnier"));
+    dlg.appendChild(tiles([["Winner",winnerOf(m)],["Games",m.sa+m.sb],["Difference",Math.abs(m.sa-m.sb)]]));
+    dlg.appendChild(el("div","sec","Record in the tournament"));
     dlg.appendChild(tiles([[m.a+" Matches",ra.w+"–"+ra.l],[m.a+" Games",ra.gw+":"+ra.gl],[m.b+" Matches",rb.w+"–"+rb.l],[m.b+" Games",rb.gw+":"+rb.gl]]));
     if(meet.length){
-      dlg.appendChild(el("div","sec","Weitere Duelle"));
+      dlg.appendChild(el("div","sec","Other matchups"));
       meet.forEach(function(q){
         var r=el("div","rowm");
-        r.appendChild(el("span","r","C"+q.c+", "+q.rd));
+        r.appendChild(el("span","r","C"+q.c+", "+rdEn(q.rd)));
         r.appendChild(el("span",null,m.a+" "+(q.a===m.a?q.sa:q.sb)+" : "+(q.a===m.a?q.sb:q.sa)+" "+m.b));
         dlg.appendChild(r);
       });
     }
-    dlg.appendChild(el("div","sec","Bans"));
-    dlg.appendChild(tagEditor("bans","Ban hinzufügen",m));
-    dlg.appendChild(el("div","sec","Gamemodes"));
-    dlg.appendChild(tagEditor("modes","Gamemode hinzufügen",m));
     ov.appendChild(dlg);
     x.focus();
   }
@@ -916,7 +879,7 @@ const CHAMPS = {
 
   function renderSections(){
     var nav=$("sections");nav.innerHTML="";
-    [["ranked","Ranked-Verlauf"],["champs","PvPChamps"]].forEach(function(x){
+    [["ranked","Ranked history"],["champs","PvPChamps"]].forEach(function(x){
       var b=el("button","tabbtn",x[1]);
       b.type="button";b.setAttribute("role","tab");b.setAttribute("aria-selected",x[0]===section?"true":"false");
       b.addEventListener("click",function(){if(x[0]!==section)setSection(x[0])});
@@ -924,7 +887,7 @@ const CHAMPS = {
     });
     $("secRanked").hidden=section!=="ranked";
     $("secChamps").hidden=section!=="champs";
-    $("subtitle").textContent=section==="ranked"?"Verlauf der gerankten Spieler, stündlich":"Brackets von PvPChamps 1 und 2";
+    $("subtitle").textContent=section==="ranked"?"History of ranked players, hourly":"Brackets of PvPChamps 1 and 2";
   }
   function setSection(id){
     section=id;
