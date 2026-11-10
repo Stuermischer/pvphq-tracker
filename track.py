@@ -49,6 +49,9 @@ SEED = {
     "overall": 5322, "sword": 2891, "axe": 257, "mace": 322, "spear_mace": 771, "uhc": 586,
     "netherite_pot": 84, "pot": 221, "smp": 158, "diamond_smp": 1357, "vanilla": 457, "cart": 417,
 }
+# Vor dem Reset: Am 7.11.2026 um 21:00 Uhr standen alle Modi auf 0
+ZERO = {"t": ms(2026, 11, 7, 21, 0), **{k: 0 for k in ["overall", "sword", "axe", "mace", "spear_mace", "uhc",
+        "netherite_pot", "pot", "smp", "diamond_smp", "vanilla", "cart"]}}
 OLD_SEED_T = ms(2026, 11, 8, 0, 30)  # frühere Uhrzeit der Startmessung (wird auf SEED["t"] korrigiert)
 
 # Von Hand gestartete Läufe sind nur ein Test: Sie zeigen die Zahlen, speichern aber keine Messung.
@@ -153,7 +156,7 @@ if not isinstance(history, list):
 # Einmaliger Neustart mit der Messung von Hand
 if not any(p.get("reset") == RESET_ID for p in history):
     archive(history, RESET_ID)
-    history = [{"reset": RESET_ID}, dict(SEED)]
+    history = [{"reset": RESET_ID}, dict(ZERO), dict(SEED)]
     save_json("history.json", history)
     print("Verlauf neu gestartet mit der Messung von Hand:", SEED)
 else:
@@ -164,8 +167,15 @@ else:
             p["t"] = SEED["t"]
             fixed = True
     if fixed:
-        save_json("history.json", history)
         print("Uhrzeit der Startmessung auf 00:00 Uhr korrigiert")
+    # Nullmessung vom 7.11., 21:00 Uhr ergänzen, falls sie noch fehlt (Reihenfolge nach Zeit)
+    if not any(p.get("t") == ZERO["t"] for p in history):
+        history.append(dict(ZERO))
+        fixed = True
+        print("Nullmessung vom 7.11., 21:00 Uhr ergänzt")
+    if fixed:
+        history = [p for p in history if "t" not in p] + sorted((p for p in history if "t" in p), key=lambda p: p["t"])
+        save_json("history.json", history)
 
 start = time.time()  # Start des Laufs
 todo = list(LADDERS)
