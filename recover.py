@@ -42,9 +42,14 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     history = []
 
-runs = json.loads(
-    gh("api", f"repos/{REPO}/actions/workflows/track.yml/runs", "-f", "per_page=100", "-f", f"created=>={SINCE}")
-)["workflow_runs"]
+try:
+    # Wichtig: ausdrücklich GET. Mit "-f" würde gh sonst POST senden und GitHub den Fehler 404 zurückgeben.
+    raw = gh("api", "--method", "GET", f"repos/{REPO}/actions/workflows/track.yml/runs?per_page=100&created=%3E%3D{SINCE}")
+    runs = json.loads(raw)["workflow_runs"]
+except Exception as e:
+    print("FEHLER beim Abrufen der Läufe von GitHub:", e)
+    print("Hinweis: Unter Settings > Actions > General muss bei 'Workflow permissions' mindestens Lesezugriff erlaubt sein.")
+    sys.exit(1)
 print(f"{len(runs)} Läufe seit {SINCE} gefunden")
 
 recovered = []
