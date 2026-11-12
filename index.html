@@ -154,8 +154,9 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       <div class="bars" id="bars"></div>
     </section>
     <section class="card">
-      <h2>Relative comparison</h2>
-      <p class="hint">Change in percent since the start of the period. Choose as many modes as you like.</p>
+      <h2>Comparison</h2>
+      <p class="hint" id="cmpHint"></p>
+      <div class="chips" id="cmpViews" style="margin-bottom:12px"></div>
       <div class="chips" id="modesB"></div>
       <div class="plot" style="margin-top:16px"><div class="chart" id="chartB"></div><div class="tip" id="tip" hidden></div></div>
       <div id="tbl"></div>
@@ -221,7 +222,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   var nf=new Intl.NumberFormat("en-US");
   var L=58,T=14,B=28;
   var TOL=30*6e4; /* tolerance: measurements can arrive up to about 30 min late */
-  var data=[],selA="overall",onB={},range="all",off=0,loaded=false,failed="",cur={};
+  var data=[],selA="overall",onB={},cmpView="share",range="all",off=0,loaded=false,failed="",cur={};
   LADDERS.forEach(function(l){onB[l[0]]=true});
   var $=function(id){return document.getElementById(id)};
 
@@ -290,6 +291,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     ghost(el,"None",function(){onB={};render()});
     LADDERS.forEach(function(l){
       var id=l[0],c=COLORS[id];
+      if(cmpView==="share"&&id==="overall")return;
       el.appendChild(modeChip(id,l[1],!!onB[id],"background:color-mix(in srgb,"+c+" 22%,var(--surface));box-shadow:inset 0 0 0 2px "+c+";opacity:1",function(){onB[id]=!onB[id];render()}));
     });
   }
@@ -401,6 +403,29 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   }
 
   /* ---------- Graph zeichnen (kind: "abs" oder "rel") ---------- */
+  /* Vergleich: Anteil an Overall oder Spieler pro Stunde. Beides funktioniert auch, wenn bei 0 gestartet wird. */
+  function relSeries(id){
+    var pts=series(id);
+    if(!pts.length)return null;
+    var ser=[],i;
+    if(cmpView==="share"){
+      var ov=allSeriesC("overall");
+      if(!ov.length)return null;
+      pts.forEach(function(p,k){var o=ovAt(ov,p.t);if(o>0)ser.push({t:p.t,v:p[id],y:p[id]/o*100,i:k})});
+      if(range!=="all"&&ser.length){
+        var w=winFor(),all=allSeriesC(id),lastT=all[all.length-1].t,vs=valueAt(all,w.from),os=valueAt(ov,w.from);
+        if(vs!==null&&os>0&&w.from<ser[0].t)ser.unshift({t:w.from,v:vs,y:vs/os*100,i:-1,edge:true});
+        if(w.to<=lastT&&w.to>ser[ser.length-1].t){var ve=valueAt(all,w.to),oe=valueAt(ov,w.to);if(ve!==null&&oe>0)ser.push({t:w.to,v:ve,y:ve/oe*100,i:-1,edge:true})}
+      }
+    }else{
+      for(i=1;i<pts.length;i++){
+        var dt=(pts[i].t-pts[i-1].t)/36e5;
+        if(dt>0)ser.push({t:pts[i].t,v:pts[i][id],y:(pts[i][id]-pts[i-1][id])/dt,i:i});
+      }
+    }
+    if(ser.length<2)return null;
+    return{id:id,name:nameOf(id),pts:pts,ser:ser};
+  }
   function renderGraph(kind){
     var rel=kind==="rel",box=$(rel?"chartB":"chartA");
     cur[kind]=null;
@@ -410,10 +435,11 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       dl.textContent="";dl.className="delta";$("stats").innerHTML="";$("bars").innerHTML="";
       $("cname").textContent=nameOf(selA);
     }
-    var ids=rel?LADDERS.map(function(l){return l[0]}).filter(function(id){return onB[id]}):[selA];
+    var ids=rel?LADDERS.map(function(l){return l[0]}).filter(function(id){return onB[id]&&!(cmpView==="share"&&id==="overall")}):[selA];
     if(!loaded){if(!rel)show(null);msg(box,failed?"Could not load history.":"Loading …");return}
     if(!ids.length){msg(box,"Choose at least one mode above.");return}
     var S=ids.map(function(id){
+      if(rel)return relSeries(id);
       var pts=series(id);
       if(pts.length<1)return null;
       var ser=pts.map(function(p,i){return{t:p.t,v:p[id],i:i}});
@@ -422,10 +448,8 @@ td.up{color:var(--up)}td.down{color:var(--down)}
         if(vs!==null&&w.from<pts[0].t)ser.unshift({t:w.from,v:vs,i:-1,edge:true});
         if(w.to<=lastT&&w.to>pts[pts.length-1].t){var ve=valueAt(all,w.to);if(ve!==null)ser.push({t:w.to,v:ve,i:-1,edge:true})}
       }
-      if(rel){ser=ser.filter(function(q){return q.v>0})}
       if(ser.length<2)return null;
-      var base=ser[0].v;
-      ser.forEach(function(q){q.y=rel?(base?(q.v/base-1)*100:0):q.v});
+      ser.forEach(function(q){q.y=q.v});
       return{id:id,name:nameOf(id),pts:pts,ser:ser};
     }).filter(Boolean);
     if(!S.length){if(!rel)show(null);msg(box,"Not enough data yet. At least two measurements are needed in this period.");return}
@@ -443,11 +467,14 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var span=Math.max(1,t1-t0);
     if(mx-mn<(rel?0.02:1)){var e=rel?0.01:1;mn-=e;mx+=e}
     var mn0=mn,pad=(mx-mn)*0.1;mn-=pad;mx+=pad;
-    if(!rel&&mn0>=0&&mn<0)mn=0;
+    if(mn0>=0&&mn<0)mn=0;
     var dec=(mx-mn)<1?2:1;
     function X(t){return L+(t-t0)/span*(W-L-R)}
     function Y(v){return T+(1-(v-mn)/(mx-mn))*(H-T-B)}
-    function fy(v){return rel?fPct(v,dec):nf.format(Math.round(v))}
+    function fy(v){
+      if(!rel)return nf.format(Math.round(v));
+      return cmpView==="share"?v.toFixed(mx-mn<20?1:0)+"%":nf.format(Math.round(v))+"/h";
+    }
     var base=H-B,gid="gr"+kind;
     var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="History of ranked players">';
     s+='<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.35"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>';
@@ -472,7 +499,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       }
     });
     if(rel){
-      var labs=S.map(function(q){var l=q.ser[q.ser.length-1];return{q:q,y:Y(l.y),txt:q.name+" "+fPct(l.y,dec>1?2:2)}}).sort(function(a,b){return a.y-b.y});
+      var labs=S.map(function(q){var l=q.ser[q.ser.length-1];return{q:q,y:Y(l.y),txt:q.name+" "+(cmpView==="share"?l.y.toFixed(1)+"%":fR(l.y))}}).sort(function(a,b){return a.y-b.y});
       var i2;
       for(i2=1;i2<labs.length;i2++)if(labs[i2].y-labs[i2-1].y<15)labs[i2].y=labs[i2-1].y+15;
       if(labs.length&&labs[labs.length-1].y>base)labs[labs.length-1].y=base;
@@ -497,14 +524,19 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   function renderTable(S){
     var el=$("tbl");el.innerHTML="";
     if(!S||!S.length)return;
+    var ov=allSeriesC("overall");
     var rows=S.map(function(s){
       var f=s.pts[0],l=s.pts[s.pts.length-1],a=f[s.id],b=l[s.id],hrs=(l.t-f.t)/36e5;
-      return{id:s.id,name:s.name,now:b,d:b-a,pct:a?(b/a-1)*100:0,rate:hrs>0?(b-a)/hrs:0};
-    }).sort(function(x,y){return y.pct-x.pct});
+      var oE=ov.length?ovAt(ov,l.t):0,f0=null;
+      for(var q=0;q<s.pts.length&&!f0;q++){var oo=ov.length?ovAt(ov,s.pts[q].t):0;if(oo>0)f0={v:s.pts[q][s.id],o:oo}}
+      var sh=(s.id!=="overall"&&oE>0)?b/oE*100:null;
+      var dsh=(sh!==null&&f0)?sh-f0.v/f0.o*100:null;
+      return{id:s.id,name:s.name,now:b,d:b-a,sh:sh,dsh:dsh,rate:hrs>0?(b-a)/hrs:0};
+    }).sort(function(x,y){return cmpView==="rate"?y.rate-x.rate:(y.sh===null?-1:y.sh)-(x.sh===null?-1:x.sh)});
     var note=document.createElement("div");note.className="note";
-    note.textContent="In the selected period, sorted by relative growth.";
+    note.textContent=cmpView==="rate"?"In the selected period, sorted by players per hour.":"In the selected period, sorted by share of Overall.";
     var tb=document.createElement("table");
-    tb.innerHTML='<thead><tr><th>Mode</th><th class="num">Current</th><th class="num">Change</th><th class="num">in %</th><th class="num">per hour</th></tr></thead>';
+    tb.innerHTML='<thead><tr><th>Mode</th><th class="num">Current</th><th class="num">Change</th><th class="num">Share</th><th class="num">Share change</th><th class="num">per hour</th></tr></thead>';
     var body=document.createElement("tbody");
     rows.forEach(function(r){
       var tr=document.createElement("tr"),td=document.createElement("td"),mn=document.createElement("div");
@@ -513,7 +545,11 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       mn.appendChild(sw);mn.appendChild(icon(r.id));mn.appendChild(document.createTextNode(r.name));
       td.appendChild(mn);tr.appendChild(td);
       function add(txt,c){var x=document.createElement("td");x.className="num "+(c||"");x.textContent=txt;tr.appendChild(x)}
-      add(nf.format(r.now));add(fN(r.d),cls(r.d));add(fPct(r.pct,2),cls(r.pct));add(fR(r.rate),cls(r.rate));
+      var rd=r.dsh===null?null:Math.round(r.dsh*100)/100;
+      add(nf.format(r.now));add(fN(r.d),cls(r.d));
+      add(r.sh===null?"–":r.sh.toFixed(1)+"%");
+      add(rd===null?"–":(rd>0?"+":rd<0?"−":"±")+Math.abs(rd).toFixed(2)+" pp",rd===null?"":cls(rd));
+      add(fR(r.rate),cls(r.rate));
       body.appendChild(tr);
     });
     tb.appendChild(body);el.appendChild(note);el.appendChild(tb);
@@ -552,7 +588,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       var pt=null;
       s.ser.forEach(function(q){if(q.t<=tm)pt=q});
       if(pt)h+='<circle cx="'+c.X(pt.t).toFixed(1)+'" cy="'+c.Y(pt.y).toFixed(1)+'" r="5" style="fill:'+COLORS[s.id]+';stroke:var(--surface);stroke-width:2"/>';
-      rows+='<div class="tr"><span class="sw" style="background:'+COLORS[s.id]+'"></span><span class="nm">'+s.name+'</span><span class="v">'+(pt?fPct(pt.y,2):"–")+'</span></div>';
+      rows+='<div class="tr"><span class="sw" style="background:'+COLORS[s.id]+'"></span><span class="nm">'+s.name+'</span><span class="v">'+(pt?(cmpView==="share"?pt.y.toFixed(2)+"%":fR(pt.y)):"–")+'</span></div>';
     });
     hl.innerHTML=h;
     tip.innerHTML=rows;tip.hidden=false;
@@ -649,9 +685,10 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     LADDERS.slice(1).forEach(function(l){
       var id=l[0],sr=series(id);
       if(!sr.length)return;
-      var f=sr[0],e=sr[sr.length-1],oE=ovAt(all,e.t),oF=ovAt(all,f.t);
+      var e=sr[sr.length-1],oE=ovAt(all,e.t),f0=null;
+      for(var q=0;q<sr.length&&!f0;q++){var oo=ovAt(all,sr[q].t);if(oo>0)f0={v:sr[q][id],o:oo}}
       var shE=oE>0?e[id]/oE*100:0;
-      rows.push({id:id,name:l[1],share:shE,count:e[id],d:(sr.length>1&&oE>0&&oF>0)?shE-f[id]/oF*100:null});
+      rows.push({id:id,name:l[1],share:shE,count:e[id],d:(f0&&oE>0&&sr.length>1)?shE-f0.v/f0.o*100:null});
     });
     if(!rows.length){msg(box,"No data in this period yet.");return}
     rows.sort(function(a,b){return b.share-a.share});
@@ -674,6 +711,10 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     if(section==="champs"){renderChamps();return}
     chips($("ranges"),RANGES,range,function(id){range=id;off=0;render()});
     renderNav();
+    chips($("cmpViews"),[["share","Share of Overall"],["rate","Players per hour"]],cmpView,function(id){cmpView=id;render()});
+    $("cmpHint").textContent=cmpView==="share"
+      ?"What percentage of all ranked players (Overall) are ranked in each mode, over time. Choose as many modes as you like."
+      :"How many players per hour each mode gains between two measurements. The size of a mode does not matter, so you can see which one grows fastest.";
     buildModesA();buildModesB();
     renderGraph("abs");renderGraph("rel");
     renderTop();renderShare();

@@ -52,6 +52,24 @@ SEED = {
 # Vor dem Reset: Am 7.11.2026 um 21:00 Uhr standen alle Modi auf 0
 ZERO = {"t": ms(2026, 11, 7, 21, 0), **{k: 0 for k in ["overall", "sword", "axe", "mace", "spear_mace", "uhc",
         "netherite_pot", "pot", "smp", "diamond_smp", "vanilla", "cart"]}}
+# Messungen vom 8.11.2026 (0:58 bis 10:15 Uhr), die beim Neustart nur im Archiv landeten. Die Zahlen stammen
+# aus den Protokollen der Läufe. Fehlen sie in history.json, werden sie ergänzt.
+def _m(t, o, s, a, m, sp, u, n, p, sm, d, v, c, off):
+    keys = ["overall", "sword", "axe", "mace", "spear_mace", "uhc", "netherite_pot", "pot", "smp", "diamond_smp", "vanilla", "cart"]
+    vals = [o, s, a, m, sp, u, n, p, sm, d, v, c]
+    return {"t": t, **dict(zip(keys, vals)), "o": dict(zip(keys, off))}
+
+
+EXTRA = [
+    _m(1794095893868, 6759, 3692, 362, 463, 1050, 816, 117, 296, 223, 1749, 622, 567, [2, 4, 6, 8, 10, 12, 14, 16, 18, 21, 23, 25]),
+    _m(1794101939508, 8731, 4788, 504, 638, 1419, 1181, 150, 454, 348, 2401, 843, 771, [2, 4, 7, 9, 11, 13, 15, 18, 20, 22, 24, 26]),
+    _m(1794107798611, 10258, 5653, 582, 775, 1703, 1409, 175, 560, 436, 2910, 1012, 920, [2, 4, 6, 8, 10, 12, 14, 16, 19, 21, 23, 25]),
+    _m(1794111658915, 11052, 6161, 634, 840, 1868, 1534, 187, 609, 487, 3202, 1103, 977, [2, 4, 6, 8, 10, 13, 15, 17, 19, 21, 23, 25]),
+    _m(1794115040787, 11743, 6564, 674, 883, 2012, 1635, 209, 647, 523, 3415, 1159, 1031, [2, 4, 7, 9, 11, 13, 16, 18, 20, 22, 24, 26]),
+    _m(1794118472765, 12257, 6891, 702, 937, 2133, 1725, 227, 683, 554, 3607, 1216, 1077, [2, 4, 6, 9, 11, 13, 16, 18, 20, 22, 24, 26]),
+    _m(1794123143589, 13067, 7387, 739, 982, 2273, 1831, 247, 717, 603, 3918, 1291, 1149, [2, 4, 6, 8, 11, 13, 15, 17, 19, 21, 23, 25]),
+    _m(1794129329986, 14036, 7947, 777, 1060, 2472, 1962, 272, 783, 653, 4266, 1367, 1264, [2, 4, 6, 8, 11, 13, 15, 17, 19, 21, 23, 25]),
+]
 OLD_SEED_T = ms(2026, 11, 8, 0, 30)  # frühere Uhrzeit der Startmessung (wird auf SEED["t"] korrigiert)
 
 # Von Hand gestartete Läufe sind nur ein Test: Sie zeigen die Zahlen, speichern aber keine Messung.
@@ -176,6 +194,34 @@ else:
     if fixed:
         history = [p for p in history if "t" not in p] + sorted((p for p in history if "t" in p), key=lambda p: p["t"])
         save_json("history.json", history)
+
+def merge_missing(history, entries, label):
+    """Ergänzt Messungen, zu denen es (auf 5 Minuten genau) noch keine in history.json gibt."""
+    times = [p["t"] for p in history if "t" in p]
+    added = 0
+    for e in entries:
+        if "t" not in e or e["t"] < SEED["t"]:
+            continue
+        if any(abs(e["t"] - x) < 5 * 60 * 1000 for x in times):
+            continue
+        history.append(dict(e))
+        times.append(e["t"])
+        added += 1
+    if added:
+        print(f"{added} fehlende Messungen aus {label} ergänzt")
+    return added
+
+
+# fehlende Messungen vom 8.11. aus dem Archiv und aus den Protokollen wiederherstellen
+_added = 0
+for _f in sorted(f for f in os.listdir(".") if f.startswith("history_archive_") and f.endswith(".json")):
+    _arch = load_json(_f, [])
+    if isinstance(_arch, list):
+        _added += merge_missing(history, _arch, _f)
+_added += merge_missing(history, EXTRA, "den Protokollen")
+if _added:
+    history = [p for p in history if "t" not in p] + sorted((p for p in history if "t" in p), key=lambda p: p["t"])
+    save_json("history.json", history)
 
 start = time.time()  # Start des Laufs
 todo = list(LADDERS)
