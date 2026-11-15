@@ -35,6 +35,9 @@ h2{font:800 19px/1.2 "Manrope",system-ui,sans-serif;margin:0 0 2px;letter-spacin
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 22px 20px;min-width:0;box-shadow:0 1px 2px rgba(20,30,40,.05),0 10px 28px rgba(20,30,40,.07)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .card{box-shadow:0 10px 28px rgba(0,0,0,.35)}}
 .hint{color:var(--muted);font-size:13px;margin:0 0 14px}
+.fcdays{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.fcdays input{width:70px;background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:500 14px "IBM Plex Sans",system-ui,sans-serif}
+.fcset{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 0}
 .name{color:var(--muted);font-size:14px;margin-top:18px}
 .head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:2px}
 .val{font:800 clamp(38px,4.6vw,58px)/1 "Manrope",system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -80,7 +83,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
 .tabbtn:hover{color:var(--ink)}
 .tabbtn[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
 .tabbtn:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;border-radius:6px}
-.toolbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:0 0 14px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;margin:0 0 14px}
 .lbl{color:var(--muted);font-size:13px}
 .rnav{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
 .rnav .chip{padding:5px 13px;font-size:16px}
@@ -151,6 +154,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       <div class="when" id="when"></div>
       <div class="stats" id="stats"></div>
       <div class="plot"><div class="chart" id="chartA"></div></div>
+      <div class="fcset" id="fcSet" hidden><span class="lbl" id="fcLbl">Forecast</span><div class="chips" id="fcChips"></div><label class="fcdays" id="fcDaysBox" hidden><input type="number" id="fcDays" min="1" max="365" step="1" inputmode="numeric" aria-label="Forecast days"> days</label></div>
       <div class="note" id="fcNote"></div>
       <div class="bars" id="bars"></div>
     </section>
@@ -233,8 +237,13 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   var nf=new Intl.NumberFormat("en-US");
   var L=58,T=14,B=28;
   var TOL=30*6e4; /* tolerance: measurements can arrive up to about 30 min late */
-  var data=[],selA="overall",onB={},range="all",off=0,loaded=false,failed="",cur={};
+  var data=[],selA="overall",onB={},range="all",off=0,loaded=false,failed="",cur={},fcDays=3,fcAll="on",fcDW="on",fcCache={};
   LADDERS.forEach(function(l){onB[l[0]]=true});
+  try{var sd0=localStorage.getItem("pvphq-fcdays");if(sd0!==null&&+sd0>=1&&+sd0<=365)fcDays=Math.round(+sd0);if(localStorage.getItem("pvphq-fcall")==="off")fcAll="off";if(localStorage.getItem("pvphq-fcdw")==="off")fcDW="off"}catch(e){}
+  function fcEnd(t1){
+    if(range!=="all")return off===0&&fcDW==="on"?winFor().to:null;   /* Tag: bis Tagesende, Woche: bis Wochenende */
+    return fcAll==="on"?t1+fcDays*864e5:null;
+  }
   var $=function(id){return document.getElementById(id)};
 
   function two(n){return(n<10?"0":"")+n}
@@ -242,6 +251,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
   function fD(t){var d=new Date(t);return MON[d.getMonth()]+" "+d.getDate()}
   function fT(t){var d=new Date(t);return two(d.getHours())+":"+two(d.getMinutes())}
   function fDT(t){return fD(t)+", "+fT(t)}
+  function fDY(t){var y=new Date(t).getFullYear();return fDT(t)+(y!==new Date().getFullYear()?" "+y:"")}
   function nameOf(id){return LADDERS.filter(function(l){return l[0]===id})[0][1]}
   function sgn(v){return v>0?"+":v<0?"−":"±"}
   function fN(v){return sgn(v)+nf.format(Math.abs(v))}
@@ -363,6 +373,12 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     $("val").textContent=p?nf.format(p[selA]):"–";
     $("when").textContent=p?fDT(p.t):"";
   }
+  /* Standardanzeige: endet der Zeitraum mit einem Randpunkt (Mitternacht, anteilig berechnet), zeigt die Kopfzeile dessen Wert */
+  function showLast(s){
+    var l=s.ser[s.ser.length-1];
+    if(l&&l.edge&&l.t>s.pts[s.pts.length-1].t){$("val").textContent=nf.format(Math.round(l.v));$("when").textContent=fD(l.t-1)+", 24:00 (interpolated)"}
+    else show(s.pts[s.pts.length-1]);
+  }
   function tile(k,n,sub,c){return'<div class="tile"><div class="k">'+k+'</div><div class="n '+(c||"")+'">'+n+'</div><div class="s">'+sub+'</div></div>'}
   function renderStats(pts,i,b0,b1){
     var id=selA,p=pts[i],prev=i>0?pts[i-1]:null,isLast=i===pts.length-1,h="";
@@ -376,6 +392,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     var nx=new Date(ds0);nx.setDate(nx.getDate()+1);
     var v0=valueAt(all,dsMs),fromTxt="00:00";
     if(v0===null){var bf=null;pts.forEach(function(q){if(!bf&&q.t>=dsMs)bf=q});if(bf&&bf!==p){v0=bf[id];fromTxt=fT(bf.t)}}
+    if(v0===null&&b0&&b0.t>=dsMs&&b0.t<pEnd.t){v0=b0.v;fromTxt=fT(b0.t)}
     var tl0=dayStart(Date.now()).getTime(),dlab=dsMs===tl0?"Today":"On "+fD(dsMs);
     var toTxt=(pEnd.edge&&pEnd.t===nx.getTime())?"24:00":fT(pEnd.t);
     if(v0!==null&&(pEnd.v!==v0||pEnd.t>dsMs)){var d2=pEnd.v-v0;h+=tile(dlab,fN(Math.round(d2)),jn(pc(d2,v0),fromTxt+" to "+toTxt),cls(d2))}
@@ -386,15 +403,21 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     h+=tile("Measurement",fT(p.t),isLast?ago(Date.now()-p.t)+" ago":fD(p.t));
     $("stats").innerHTML=h;
   }
-  function drawBars(pts,X,W,R){
+  function fcBarsOf(fc){
+    var pp=fc.pts.map(function(q){return{t:q.t,v:q.mid}}),t=pp[0].t,end=fc.end,st=Math.max(1,Math.ceil((end-t)/36e5/100)),out=[];
+    while(t<end-1){var t2=Math.min(end,t+st*36e5),a=valueAt(pp,t),b=valueAt(pp,t2);out.push({a:t,b:t2,r:(b-a)/((t2-t)/36e5)});t=t2}
+    return out;
+  }
+  function drawBars(pts,X,W,R,fb){
     var el=$("bars"),id=selA;
     if(pts.length<2||pts.length>400){el.innerHTML="";return}
     var ds=[],i;
     for(i=1;i<pts.length;i++)ds.push((pts[i][id]-pts[i-1][id])/((pts[i].t-pts[i-1].t)/36e5));
-    var mx=Math.max.apply(null,ds.concat([1])),mn=Math.min.apply(null,ds.concat([0]));
+    fb=fb||[];
+    var fr=fb.map(function(q){return q.r}),mx=Math.max.apply(null,ds.concat(fr,[1])),mn=Math.min.apply(null,ds.concat(fr,[0]));
     var H2=120,T2=10,B2=10;
     function Y2(v){return T2+(1-(v-mn)/(mx-mn))*(H2-T2-B2)}
-    var g='<div class="note">Gain per hour, over the interval between two measurements.</div>';
+    var g='<div class="note">Gain per hour, over the interval between two measurements. Lighter bars are forecast.</div>';
     g+='<svg viewBox="0 0 '+W+' '+H2+'" role="img" aria-label="Gain per hour">';
     g+='<line class="g" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y2(0).toFixed(1)+'" y2="'+Y2(0).toFixed(1)+'"/>';
     g+='<text class="t" x="'+(L-8)+'" y="'+(T2+4)+'" text-anchor="end">'+fR(mx)+'</text>';
@@ -405,12 +428,21 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       var y0=Y2(0),y1=Y2(d),top=Math.min(y0,y1),h=Math.max(1.5,Math.abs(y1-y0));
       g+='<rect class="bar" data-i="'+(k+1)+'" x="'+(xa+gap).toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+Math.max(1,xb-xa-2*gap).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" style="fill:var('+(d<0?"--down":"--up")+')"/>';
     });
+    fb.forEach(function(q){
+      var xa=X(q.a),xb=X(q.b),gap=Math.min(2,(xb-xa)*0.15),y0=Y2(0),y1=Y2(q.r),top=Math.min(y0,y1),hh=Math.max(1.5,Math.abs(y1-y0));
+      g+='<rect class="bar" data-f="1" data-a="'+q.a+'" data-b="'+q.b+'" x="'+(xa+gap).toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+Math.max(1,xb-xa-2*gap).toFixed(1)+'" height="'+hh.toFixed(1)+'" rx="2" style="opacity:.5;fill:var('+(q.r<0?"--down":"--up")+')"/>';
+    });
     el.innerHTML=g+'</svg>';
   }
-  function hlBar(ix){
-    var bs=document.querySelectorAll("#bars .bar");
-    for(var k=0;k<bs.length;k++)bs[k].style.opacity=(ix<0||+bs[k].getAttribute("data-i")===ix)?1:.35;
+  function hlBar(ix,tf){
+    var bs=document.querySelectorAll("#bars .bar"),none=ix<0&&tf===undefined;
+    for(var k=0;k<bs.length;k++){
+      var b=bs[k];
+      if(b.getAttribute("data-f")==="1")b.style.opacity=none?.5:(tf!==undefined&&tf>=+b.getAttribute("data-a")&&tf<+b.getAttribute("data-b")?1:.2);
+      else b.style.opacity=(none||+b.getAttribute("data-i")===ix)?1:.35;
+    }
   }
+
 
   /* ---------- Graph zeichnen (kind: "abs" oder "rel") ---------- */
   function winStart(id){
@@ -435,12 +467,13 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     }
     if(ser.length<2)return null;
     var base=ser[0].v>0?ser[0].v:1;
-    ser.forEach(function(q){q.y=(q.v/base-1)*100});
-    return{id:id,name:nameOf(id),pts:pts,ser:ser};
+    var fb=!(ser[0].v>0);
+    ser.forEach(function(q){q.y=((fb?Math.max(q.v,1):q.v)/base-1)*100});
+    return{id:id,name:nameOf(id),pts:pts,ser:ser,base:base,fb:fb};
   }
-  /* Prognose nur fuer Overall: gedaempfter Trend aus den letzten Stunden (grobe Schaetzung) */
-  function forecastOverall(endT){
-    var all=allSeriesC("overall"),n=all.length,HR=36e5;
+  /* Einfache Prognose (Ersatz, solange weniger als 2 volle Tage vorliegen): gedaempfter Trend der letzten Stunden */
+  function forecastSimple(id,endT){
+    var all=allSeriesC(id),n=all.length,HR=36e5;
     if(n<4)return null;
     var last=all[n-1];
     if(endT<=last.t)return null;
@@ -460,6 +493,152 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     }
     var e=pts[pts.length-1];
     return{pts:pts,end:e.t,mid:e.mid,lo:e.lo,hi:e.hi};
+  }
+
+  /* Prognose-Modell (fuer jeden Modus einzeln).
+     Spieler pro Stunde = Tagessumme x Stundenprofil.
+     - Stundenprofil (Tageszeit): gewichteter Schnitt der letzten vollen Tage, neuere zaehlen mehr. Wochenende und Mo-Fr
+       bekommen je ein eigenes Profil, sobald es Tage dafuer gibt (sonst gemeinsames Profil), leicht geglaettet.
+     - Tagessumme: gewichtete Gerade durch den Log der letzten Tage (Tag-zu-Tag-Trend, neuere Tage zaehlen mehr). Wird es von
+       Tag zu Tag weniger, laeuft das gedaempft weiter. Dazu ein Wochentagseffekt, der bei wenig Daten stark zur Mitte gezogen
+       wird (Wochenende und Mo-Fr stuetzen sich gegenseitig) und mit jeder Woche staerker wirkt.
+     - Tempo: Die letzten Stunden werden mit der Erwartung verglichen. Ist es spuerbar mehr oder weniger, verschiebt das den
+       Rest des Tages und, abklingend, die naechsten Tage. */
+  function hourlyIncs(id){
+    var all=allSeriesC(id),HR=36e5,i0=0;
+    while(i0<all.length&&!(all[i0].v>0))i0++;
+    if(all.length-i0<3)return[];
+    var tS=all[i0].t,tE=all[all.length-1].t,h0=new Date(tS);
+    h0.setMinutes(0,0,0);
+    if(h0.getTime()<tS)h0=new Date(h0.getTime()+HR);
+    var out=[];
+    for(var t=h0.getTime();t+HR<=tE;t+=HR){
+      var a=valueAt(all,t),b=valueAt(all,t+HR);
+      if(a!==null&&b!==null)out.push({t:t,inc:b-a});
+    }
+    return out;
+  }
+  function avg(a){return a.reduce(function(x,y){return x+y},0)/a.length}
+  function isWE(wd){return wd===0||wd===6}
+  function forecastModel(id,endT){
+    var all=allSeriesC(id),HR=36e5,DAY=864e5;
+    if(all.length<4)return null;
+    var last=all[all.length-1];
+    if(endT<=last.t)return null;
+    var byDay={};
+    hourlyIncs(id).forEach(function(q){
+      var k=dayStart(q.t).getTime(),o=byDay[k]||(byDay[k]={t:k,h:[],n:0,sum:0});
+      o.h[new Date(q.t).getHours()]=q.inc;o.n++;o.sum+=q.inc;
+    });
+    var full=Object.keys(byDay).map(Number).sort(function(a,b){return a-b}).map(function(k){return byDay[k]}).filter(function(d){return d.n>=23&&d.sum>0}).slice(-21);
+    var nF=full.length;
+    if(nF<2)return null;
+    var tL0=full[nF-1].t,i,j,h;
+    full.forEach(function(d){d.wd=new Date(d.t).getDay();d.ly=Math.log(d.sum);d.age=Math.round((tL0-d.t)/DAY)});
+
+    /* 1) Wochentagseffekt. Pro Tag: Abweichung vom Mittel der beiden Nachbartage (im Log). Fuer Samstag/Sonntag und Mo-Fr
+          wird zusaetzlich die Gruppe mitgenutzt, damit schon ein Wochenende reicht. Zur Mitte gezogen, bis genug Wochen da sind. */
+    var res=[[],[],[],[],[],[],[]],nRes=0;
+    for(i=1;i<nF-1;i++){
+      var dA=full[i].t-full[i-1].t,dB=full[i+1].t-full[i].t;
+      if(dA>DAY*1.1||dB>DAY*1.1)continue;
+      var rA=full[i].sum/full[i-1].sum,rB=full[i+1].sum/full[i].sum;
+      if(rA<.5||rB>2||rA>2||rB<.5)continue;           /* Ausreisser (z.B. Starttag) nicht verwenden */
+      res[full[i].wd].push(full[i].ly-(full[i-1].ly+full[i+1].ly)/2);nRes++;
+    }
+    var gs={we:{s:0,n:0},wk:{s:0,n:0}},e=[0,0,0,0,0,0,0],eUsed=false;
+    for(j=0;j<7;j++){var g=gs[isWE(j)?"we":"wk"];res[j].forEach(function(x){g.s+=x;g.n++})}
+    var gm={we:gs.we.n?gs.we.s/gs.we.n:0,wk:gs.wk.n?gs.wk.s/gs.wk.n:0};
+    for(j=0;j<7;j++){
+      var G=isWE(j)?"we":"wk",nd=res[j].length,md=nd?avg(res[j]):0;
+      if(nd+gs[G].n===0)continue;
+      var est=(nd*md+1.5*gm[G])/(nd+1.5),trust=gs[G].n/(gs[G].n+1.5);
+      e[j]=est*trust;
+    }
+    var me=avg(e);e=e.map(function(x){return Math.max(-.4,Math.min(.4,x-me))});
+    for(j=0;j<7;j++)if(Math.abs(e[j])>.02)eUsed=true;
+
+    /* 2) Stundenprofil (Tageszeit), neuere Tage zaehlen mehr; Wochenende und Mo-Fr getrennt, sobald Daten dafuer da sind */
+    function rawProfile(filter){
+      var P=[],tot=0,cnt=0,hh;
+      for(hh=0;hh<24;hh++){
+        var s=0,ws=0;
+        full.forEach(function(d){
+          if(!filter(d)||d.h[hh]===undefined)return;
+          var w=Math.pow(.8,d.age);s+=w*Math.max(0,d.h[hh])/d.sum;ws+=w;
+        });
+        P[hh]=ws?s/ws:1/24;
+      }
+      full.forEach(function(d){if(filter(d))cnt++});
+      return{P:P,n:cnt};
+    }
+    function norm(P){var s=P.reduce(function(x,y){return x+y},0);return P.map(function(x){return x/s})}
+    var pAll=rawProfile(function(){return true}),pWE=rawProfile(function(d){return isWE(d.wd)}),pWK=rawProfile(function(d){return!isWE(d.wd)});
+    var lamAll=nF/(nF+1.5);
+    var baseP=norm(pAll.P.map(function(x){return lamAll*x+(1-lamAll)/24}));
+    function mixP(pg){
+      var lam=pg.n/(pg.n+2);
+      return norm(baseP.map(function(x,hh){return lam*pg.P[hh]+(1-lam)*x}));
+    }
+    var PWE=smoothP(mixP(pWE)),PWK=smoothP(mixP(pWK));
+    function smoothP(P){return P.map(function(x,hh){return .15*P[(hh+23)%24]+.7*x+.15*P[(hh+1)%24]})}
+    function profFor(dd){return isWE(new Date(dd+12*HR).getDay())?PWE:PWK}
+
+    /* 3) Trend der Tagessumme (ohne Wochentagseffekt): gewichtete Gerade durch die letzten Tage, neuere zaehlen mehr */
+    var sw=0,sx=0,sy=0,sxx=0,sxy=0;
+    full.forEach(function(d){
+      var w=Math.pow(.6,d.age),x=-d.age,y=d.ly-e[d.wd];
+      d.w=w;d.y=y;sw+=w;sx+=w*x;sy+=w*y;sxx+=w*x*x;sxy+=w*x*y;
+    });
+    var ridge=.15,den=(sw*sxx-sx*sx)+ridge*sw,slope=den>1e-9?(sw*sxy-sx*sy)/den:0;
+    if(nF<3)slope=Math.max(slope,Math.log(.8));        /* aus zwei Tagen nicht zu steil */
+    slope=Math.max(Math.log(.6),Math.min(Math.log(1.15),slope));
+    var lvl=(sy-slope*sx)/sw;                           /* Niveau des letzten vollen Tages */
+    var sr=0;full.forEach(function(d){var r=d.y-(lvl+slope*(-d.age));sr+=d.w*r*r});
+    var sg=nF<4?.2:Math.sqrt(sr/sw)*1.5;
+    sg=Math.max(.1,Math.min(.4,sg));
+    var PHI=.85;
+    function dayTrend(dd){
+      var dk=Math.round((dd-tL0)/DAY),S=0,k;
+      if(dk<=0)S=dk;else S=PHI*(1-Math.pow(PHI,dk))/(1-PHI);
+      return Math.exp(lvl+slope*S+e[new Date(dd+12*HR).getDay()]);
+    }
+
+    /* 4) Aktuelles Tempo: Die letzten Stunden werden mit der Erwartung des Modells verglichen. Liegt es spuerbar darueber
+          oder darunter, wird der Rest des Tages entsprechend verschoben, und, abklingend, auch die naechsten Tage. */
+    var todayStart=dayStart(last.t).getTime(),lr=0;
+    var wS=Math.max(all[0].t,last.t-6*HR),vS=valueAt(all,wS);
+    if(vS!==null&&last.t-wS>=2*HR&&last.v>vS){
+      var exp0=0,u=wS;
+      while(u<last.t-1){
+        var nu=Math.min(last.t,(Math.floor(u/(HR/2))+1)*(HR/2)),mu=(u+nu)/2,dmu=dayStart(mu).getTime();
+        exp0+=dayTrend(dmu)*profFor(dmu)[new Date(mu).getHours()]*((nu-u)/HR);
+        u=nu;
+      }
+      if(exp0>0)lr=Math.log(Math.max(.5,Math.min(2,(last.v-vS)/exp0)))*.8*Math.min(1,(last.t-wS)/(6*HR));
+    }
+    function dayTotal(dd){
+      var k=Math.round((dd-todayStart)/DAY);
+      return dayTrend(dd)*Math.exp(k<=0?lr:lr*Math.pow(.6,k));
+    }
+    /* Schritte zu je 30 Minuten */
+    var pts=[{t:last.t,mid:last.v,lo:last.v,hi:last.v}],cum=0,t=last.t;
+    while(t<endT-1){
+      var stp=(endT-last.t>7*DAY)?HR:HR/2,nt=Math.min(endT,(Math.floor(t/stp)+1)*stp),mid=(t+nt)/2,dm=dayStart(mid).getTime();
+      cum+=Math.max(0,dayTotal(dm)*profFor(dm)[new Date(mid).getHours()]*((nt-t)/HR));
+      var sd=Math.min(.45,sg*1.25*Math.sqrt(.5+(nt-last.t)/DAY)),fz=Math.exp(1.28*sd);
+      pts.push({t:nt,mid:last.v+cum,lo:last.v+cum/fz,hi:last.v+cum*fz});
+      t=nt;
+    }
+    var en=pts[pts.length-1];
+    return{pts:pts,end:en.t,mid:en.mid,lo:en.lo,hi:en.hi,days:nF,rho:Math.exp(slope*PHI),weekday:eUsed,wdN:nRes};
+  }
+  function forecastFor(id,endT){
+    var all=allSeriesC(id);
+    if(!all.length)return null;
+    var key=id+"|"+endT+"|"+all[all.length-1].t;
+    if(!(key in fcCache))fcCache[key]=forecastModel(id,endT)||forecastSimple(id,endT);
+    return fcCache[key];
   }
   function renderGraph(kind){
     var rel=kind==="rel",box=$(rel?"chartB":"chartA");
@@ -489,7 +668,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     }).filter(Boolean);
     if(!S.length){if(!rel)show(null);msg(box,"Not enough data yet. At least two measurements are needed in this period.");return}
     var single=rel?null:S[0];
-    var R=rel?112:20;
+    var R=rel?132:20;
     var cw=Math.round(box.clientWidth),W=cw>200?cw:340;
     var H=Math.round(Math.max(290,Math.min(430,W*0.55)));
     var t0=Infinity,t1=-Infinity,mn=Infinity,mx=-Infinity,tset={};
@@ -498,11 +677,19 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       s.ser.forEach(function(q){mn=Math.min(mn,q.y);mx=Math.max(mx,q.y);if(!q.edge)tset[q.t]=1});
     });
     if(rel){mn=Math.min(mn,0);mx=Math.max(mx,0)}
-    var fc=null;
-    if(!rel&&single&&selA==="overall"&&(range==="all"||off===0)){
-      var wf=winFor();
-      fc=forecastOverall(range==="all"?t1+24*36e5:wf.to);
-      if(fc){t1=Math.max(t1,fc.end);mx=Math.max(mx,fc.hi)}
+    var fc=null,FCS=[],endF=fcEnd(t1);
+    if(endF){
+      var tEnd=t1;
+      S.forEach(function(q){
+        var f=forecastFor(q.id,endF);
+        if(!f)return;
+        var yf=rel?function(v){return((q.fb?Math.max(v,1):v)/q.base-1)*100}:function(v){return v},one=S.length===1;
+        FCS.push({id:q.id,fc:f,yf:yf,col:single?"var(--accent)":COLORS[q.id],band:one,name:q.name});
+        tEnd=Math.max(tEnd,f.end);
+        mx=Math.max(mx,yf(f.mid));mn=Math.min(mn,yf(f.mid));
+      });
+      t1=tEnd;
+      if(!rel&&FCS.length)fc=FCS[0].fc;
     }
     var times=Object.keys(tset).map(Number).sort(function(a,b){return a-b});
     var span=Math.max(1,t1-t0);
@@ -532,21 +719,25 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     }
     S.forEach(function(q){
       var col=single?"var(--accent)":COLORS[q.id],d=q.ser.map(function(p,i){return(i?"L":"M")+X(p.t).toFixed(1)+" "+Y(p.y).toFixed(1)}).join(" ");
-      if(single)s+='<path d="'+d+' L'+X(t1).toFixed(1)+" "+base+" L"+X(q.ser[0].t).toFixed(1)+" "+base+' Z" fill="url(#'+gid+')"/>';
+      if(single){
+        var dA=d,endA=q.ser[q.ser.length-1].t,F0=FCS.filter(function(z){return z.id===q.id})[0];
+        if(F0){thin(F0.fc.pts).slice(1).forEach(function(pp){dA+=" L"+X(pp.t).toFixed(1)+" "+Y(F0.yf(pp.mid)).toFixed(1)});endA=F0.fc.end}
+        s+='<path d="'+dA+' L'+X(endA).toFixed(1)+" "+base+" L"+X(q.ser[0].t).toFixed(1)+" "+base+' Z" fill="url(#'+gid+')"/>';
+      }
       s+='<path class="ln" style="stroke:'+col+';stroke-width:'+(single?2.6:2.4)+'" d="'+d+'"/>';
       if(q.ser.length<=1500){
         var rr=q.ser.length>300?1.5:q.ser.length>100?2.3:3.2;
         q.ser.forEach(function(p){if(p.edge)return;s+='<circle cx="'+X(p.t).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="'+rr+'" style="fill:'+col+';stroke:var(--surface);stroke-width:1.5"/>'});
       }
     });
-    if(fc){
-      var up=fc.pts.map(function(q){return X(q.t).toFixed(1)+" "+Y(q.hi).toFixed(1)}),dn=fc.pts.slice().reverse().map(function(q){return X(q.t).toFixed(1)+" "+Y(q.lo).toFixed(1)});
-      s+='<path d="M'+up.join(" L")+" L"+dn.join(" L")+' Z" style="fill:var(--accent);opacity:.18"/>';
-      s+='<path class="ln" style="stroke:var(--accent);stroke-width:2.4;stroke-dasharray:6 6;opacity:.95" d="'+fc.pts.map(function(q,i){return(i?"L":"M")+X(q.t).toFixed(1)+" "+Y(q.mid).toFixed(1)}).join(" ")+'"/>';
-      s+='<text class="t" x="'+(X(fc.end)-6).toFixed(1)+'" y="'+(Y(fc.hi)-8).toFixed(1)+'" text-anchor="end" style="fill:var(--ink)">~'+nf.format(Math.round(fc.mid))+'</text>';
-    }
+    function thin(pts){var st=Math.max(1,Math.floor(pts.length/240));return pts.filter(function(q,i){return i%st===0||i===pts.length-1})}
+    FCS.forEach(function(F){
+      var f=F.fc,yf=F.yf,fp=thin(f.pts);
+      s+='<path class="ln" style="stroke:'+F.col+';stroke-width:2.4;stroke-dasharray:6 6;opacity:.95" d="'+fp.map(function(q,i){return(i?"L":"M")+X(q.t).toFixed(1)+" "+Y(yf(q.mid)).toFixed(1)}).join(" ")+'"/>';
+      if(!rel)s+='<text class="t" x="'+(X(f.end)-6).toFixed(1)+'" y="'+(Y(yf(f.mid))-8).toFixed(1)+'" text-anchor="end" style="fill:var(--ink)">~'+nf.format(Math.round(f.mid))+'</text>';
+    });
     if(rel){
-      var labs=S.map(function(q){var l=q.ser[q.ser.length-1];return{q:q,y:Y(l.y),txt:q.name+" "+fPct(l.y,2)}}).sort(function(a,b){return a.y-b.y});
+      var labs=S.map(function(q){var l=q.ser[q.ser.length-1],F=FCS.filter(function(z){return z.id===q.id})[0],yy=F?F.yf(F.fc.mid):l.y;return{q:q,y:Y(yy),txt:q.name+" "+(F?"~":"")+fPct(yy,2)}}).sort(function(a,b){return a.y-b.y});
       var i2;
       for(i2=1;i2<labs.length;i2++)if(labs[i2].y-labs[i2-1].y<15)labs[i2].y=labs[i2-1].y+15;
       if(labs.length&&labs[labs.length-1].y>base)labs[labs.length-1].y=base;
@@ -556,34 +747,44 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     s+='<line class="cx" id="cx'+kind+'" y1="'+T+'" y2="'+base+'" style="visibility:hidden"/><g id="hl'+kind+'"></g>';
     if(single){var ls=single.ser[single.ser.length-1];s+='<circle class="dot" id="cc" r="6" style="stroke:var(--accent)" cx="'+X(ls.t).toFixed(1)+'" cy="'+Y(ls.y).toFixed(1)+'"/>'}
     box.innerHTML=s+'</svg>';
-    cur[kind]={S:S,single:single,times:times,X:X,Y:Y,t0:t0,span:span,W:W,R:R};
+    var tLast=-Infinity;
+    S.forEach(function(q){tLast=Math.max(tLast,q.pts[q.pts.length-1].t)});
+    cur[kind]={S:S,single:single,times:times,X:X,Y:Y,t0:t0,span:span,W:W,R:R,FCS:FCS,tLast:tLast};
+    if(rel)renderTable(S,FCS);
     if(fc){
-      var when=range==="all"?"in 24 hours":range==="day"?"the end of today":"the end of this week";
-      $("fcNote").textContent="Forecast for "+when+" (dashed): about "+nf.format(Math.round(fc.mid))+", likely between "+nf.format(Math.round(fc.lo))+" and "+nf.format(Math.round(fc.hi))+". Rough estimate from the last hours of growth, it ignores the time of day.";
+      var how;
+      if(fc.days){
+        var tr=fc.rho<.98?"about "+Math.round((1-fc.rho)*100)+"% less per day":fc.rho>1.02?"about "+Math.round((fc.rho-1)*100)+"% more per day":"flat";
+        how="Trend: "+tr+" ("+fc.days+" full days of data). "+(fc.wdN>=14?"Weekday pattern included.":"Weekday pattern still being learned.");
+      }else how="Too little data yet, simple trend only.";
+      $("fcNote").textContent="Forecast until "+fDY(fc.end)+": about "+nf.format(Math.round(fc.mid))+", likely "+nf.format(Math.round(fc.lo))+" to "+nf.format(Math.round(fc.hi))+". "+how;
     }
-    if(rel)renderTable(S);
     if(single){
       var v0=single.ser[0].v,v1=single.ser[single.ser.length-1].v,diff=v1-v0,pct=v0?diff/v0*100:0;
       var dl2=$("delta");
       dl2.className="delta "+(diff?cls(diff):"flat");
       dl2.textContent=fN(Math.round(diff))+(v0?" ("+fPct(Math.abs(pct),1).replace(/^[+±]/,"")+")":"");
-      show(single.pts[single.pts.length-1]);
+      cur[kind].dTxt=dl2.textContent;cur[kind].dCls=dl2.className;
+      showLast(single);
       renderStats(single.pts,single.pts.length-1,single.ser[0],single.ser[single.ser.length-1]);
-      drawBars(single.pts,X,W,R);
+      drawBars(single.pts,X,W,R,FCS.length?fcBarsOf(FCS[0].fc):null);
     }
   }
-  function renderTable(S){
+  function renderTable(S,FCS){
     var el=$("tbl");el.innerHTML="";
     if(!S||!S.length)return;
     var rows=S.map(function(s){
-      var l=s.pts[s.pts.length-1],b=l[s.id],st=winStart(s.id)||{t:s.pts[0].t,v:s.pts[0][s.id]},hrs=(l.t-st.t)/36e5;
-      var base=st.v>0?st.v:1;
-      return{id:s.id,name:s.name,now:b,d:b-st.v,pct:(b/base-1)*100,rate:hrs>0?(b-st.v)/hrs:0};
+      var l=s.ser[s.ser.length-1],b=l.v,st=s.ser[0],hrs=(l.t-st.t)/36e5;
+      var base=s.base;
+      function yv(v){return((s.fb?Math.max(v,1):v)/base-1)*100}
+      var F=(FCS||[]).filter(function(z){return z.id===s.id})[0];
+      return{id:s.id,name:s.name,now:b,d:b-st.v,pct:yv(b),rate:hrs>0?(b-st.v)/hrs:0,fv:F?F.fc.mid:null,fp:F?yv(F.fc.mid):null};
     }).sort(function(x,y){return y.pct-x.pct});
     var note=document.createElement("div");note.className="note";
-    note.textContent="In the selected period, sorted by relative growth.";
+    var hasF=FCS&&FCS.length;
+    note.textContent="In the selected period, sorted by relative growth."+(hasF?" Forecast values are for "+fDY(FCS[0].fc.end)+".":"");
     var tb=document.createElement("table");
-    tb.innerHTML='<thead><tr><th>Mode</th><th class="num">Current</th><th class="num">Change</th><th class="num">in %</th><th class="num">per hour</th></tr></thead>';
+    tb.innerHTML='<thead><tr><th>Mode</th><th class="num">Current</th><th class="num">Change</th><th class="num">in %</th><th class="num">per hour</th>'+(hasF?'<th class="num">Forecast</th><th class="num">Forecast in %</th>':'')+'</tr></thead>';
     var body=document.createElement("tbody");
     rows.forEach(function(r){
       var tr=document.createElement("tr"),td=document.createElement("td"),mn=document.createElement("div");
@@ -592,10 +793,58 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       mn.appendChild(sw);mn.appendChild(icon(r.id));mn.appendChild(document.createTextNode(r.name));
       td.appendChild(mn);tr.appendChild(td);
       function add(txt,c){var x=document.createElement("td");x.className="num "+(c||"");x.textContent=txt;tr.appendChild(x)}
-      add(nf.format(r.now));add(fN(r.d),cls(r.d));add(fPct(r.pct,2),cls(r.pct));add(fR(r.rate),cls(r.rate));
+      add(nf.format(Math.round(r.now)));add(fN(Math.round(r.d)),cls(r.d));add(fPct(r.pct,2),cls(r.pct));add(fR(r.rate),cls(r.rate));
+      if(hasF){add(r.fv===null?"–":"~"+nf.format(Math.round(r.fv)));add(r.fp===null?"–":"~"+fPct(r.fp,2),r.fp===null?"":cls(r.fp))}
       body.appendChild(tr);
     });
-    tb.appendChild(body);el.appendChild(note);el.appendChild(tb);
+    tb.appendChild(body);var wr=document.createElement("div");wr.style.overflowX="auto";wr.appendChild(tb);el.appendChild(note);el.appendChild(wr);
+  }
+  function fcStats(c,F,q){
+    var id=selA,now=F.fc.pts[0],pp=F.fc.pts.map(function(z){return{t:z.t,v:z.mid}}),b0=c.single.ser[0],h="";
+    var d=q.mid-now.mid,hr=Math.max(1e-6,(q.t-now.t)/36e5);
+    h+=tile("Since last measurement",fN(Math.round(d)),jn(pc(d,now.mid),fR(d/hr),"after "+ago(q.t-now.t)),cls(d));
+    var atMid=q.t===dayStart(q.t).getTime(),ds=dayStart(atMid?q.t-1:q.t).getTime(),v0=null;
+    if(ds<=now.t){var all=allSeriesC(id);v0=valueAt(all,ds)}else v0=valueAt(pp,ds);
+    var dlab=ds===dayStart(Date.now()).getTime()?"Today":"On "+fD(ds);
+    if(v0!==null){var d2=q.mid-v0;h+=tile(dlab,fN(Math.round(d2)),jn(pc(d2,v0),"00:00 to "+(atMid?"24:00":fT(q.t))),cls(d2))}
+    else h+=tile(dlab,"–","");
+    var hrs=(q.t-b0.t)/36e5;
+    if(hrs>0){var ph=(q.mid-b0.v)/hrs;h+=tile("Avg. per hour",fR(ph),"over "+ago(q.t-b0.t),cls(ph))}
+    else h+=tile("Avg. per hour","–","");
+    h+=tile("Forecast",fT(q.t),fD(q.t)+", in "+ago(Math.max(0,q.t-Date.now())));
+    $("stats").innerHTML=h;
+  }
+  function restoreDelta(c){var dl=$("delta");if(c.dTxt!==undefined){dl.textContent=c.dTxt;dl.className=c.dCls}}
+  /* Hover ueber der Prognose (gestrichelt): naechster Prognosepunkt, mit Bereich */
+  function hoverFc(kind,c,svg,cx,hl,t,r){
+    var ref=c.FCS[0].fc.pts,best=Infinity,q0=ref[0];
+    ref.forEach(function(q){var d=Math.abs(q.t-t);if(d<best){best=d;q0=q}});
+    var tm=q0.t;
+    cx.setAttribute("x1",c.X(tm));cx.setAttribute("x2",c.X(tm));cx.style.visibility="visible";
+    function at(F){var b=F.fc.pts[0],bd=Infinity;F.fc.pts.forEach(function(q){var d=Math.abs(q.t-tm);if(d<bd){bd=d;b=q}});return b}
+    if(kind==="abs"){
+      var F=c.FCS[0],q=at(F),now=F.fc.pts[0],d=q.mid-now.mid,hrs=Math.max(1e-6,(q.t-now.t)/36e5),dl=$("delta");
+      hl.innerHTML='<circle cx="'+c.X(q.t).toFixed(1)+'" cy="'+c.Y(q.mid).toFixed(1)+'" r="6" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/>';
+      var cc=svg.querySelector("#cc"),l0=c.single.ser.filter(function(z){return!z.edge}).pop();
+      if(cc&&l0){cc.setAttribute("cx",c.X(l0.t));cc.setAttribute("cy",c.Y(l0.y))}
+      $("val").textContent="~"+nf.format(Math.round(q.mid));
+      $("when").textContent="Forecast for "+fDY(q.t)+", likely "+nf.format(Math.round(q.lo))+" to "+nf.format(Math.round(q.hi));
+      dl.textContent=fN(Math.round(d))+" from now";dl.className="delta "+(d?cls(d):"flat");
+      fcStats(c,F,q);
+      hlBar(-1,tm);
+      return;
+    }
+    var h="",rows='<div class="th">Forecast for '+fDY(tm)+'</div>',tip=$("tip");
+    c.FCS.forEach(function(F){
+      var q=at(F),y=F.yf(q.mid);
+      h+='<circle cx="'+c.X(q.t).toFixed(1)+'" cy="'+c.Y(y).toFixed(1)+'" r="5" style="fill:'+F.col+';stroke:var(--surface);stroke-width:2"/>';
+      rows+='<div class="tr"><span class="sw" style="background:'+F.col+'"></span><span class="nm">'+F.name+'</span><span class="v">~'+fPct(y,2)+'</span></div>';
+    });
+    hl.innerHTML=h;
+    tip.innerHTML=rows;tip.hidden=false;
+    var px=c.X(tm)/c.W*r.width,pw=$("chartB").clientWidth,left=px+14;
+    if(left+tip.offsetWidth>pw)left=px-14-tip.offsetWidth;
+    tip.style.left=Math.max(0,left)+"px";
   }
   function hover(kind,e,end){
     var c=cur[kind];
@@ -609,12 +858,14 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       else{
         var cc0=svg.querySelector("#cc"),l0=c.single.ser.filter(function(q){return!q.edge}).pop();
         if(cc0){cc0.setAttribute("cx",c.X(l0.t));cc0.setAttribute("cy",c.Y(l0.y))}
-        show(c.single.pts[c.single.pts.length-1]);renderStats(c.single.pts,c.single.pts.length-1,c.single.ser[0],c.single.ser[c.single.ser.length-1]);hlBar(-1);
+        restoreDelta(c);
+        showLast(c.single);renderStats(c.single.pts,c.single.pts.length-1,c.single.ser[0],c.single.ser[c.single.ser.length-1]);hlBar(-1);
       }
       return;
     }
     var r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*c.W;
     var t=c.t0+Math.min(1,Math.max(0,(x-L)/(c.W-L-c.R)))*c.span;
+    if(c.FCS&&c.FCS.length&&t>c.tLast){hoverFc(kind,c,svg,cx,hl,t,r);return}
     var tm=c.times[0],best=Infinity;
     c.times.forEach(function(q){var d=Math.abs(q-t);if(d<best){best=d;tm=q}});
     cx.setAttribute("x1",c.X(tm));cx.setAttribute("x2",c.X(tm));cx.style.visibility="visible";
@@ -623,7 +874,10 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       c.single.ser.forEach(function(q){if(!q.edge&&q.t<=tm){q0=q;ix=q.i}});
       var cc=svg.querySelector("#cc");
       if(cc){cc.setAttribute("cx",c.X(q0.t));cc.setAttribute("cy",c.Y(q0.y))}
-      show(c.single.pts[ix]);renderStats(c.single.pts,ix,c.single.ser[0],c.single.ser[c.single.ser.length-1]);hlBar(ix);
+      var s0=c.single.ser[0],dd=q0.v-s0.v,dl=$("delta");
+      dl.className="delta "+(dd?cls(dd):"flat");
+      dl.textContent=fN(Math.round(dd))+(s0.v?" ("+fPct(Math.abs(dd/s0.v*100),1).replace(/^[+±]/,"")+")":"");
+      show(c.single.pts[ix]);renderStats(c.single.pts,ix,c.single.ser[0]);hlBar(ix);
       return;
     }
     var h="",rows='<div class="th">'+fDT(tm)+'</div>';
@@ -753,6 +1007,16 @@ td.up{color:var(--up)}td.down{color:var(--down)}
     renderSections();
     if(section==="champs"){renderChamps();return}
     chips($("ranges"),RANGES,range,function(id){range=id;off=0;render()});
+    var allR=range==="all";
+    $("fcSet").hidden=!allR&&off!==0;
+    $("fcLbl").textContent="Forecast (both charts)";
+    chips($("fcChips"),[["on","On"],["off","Off"]],allR?fcAll:fcDW,function(id){
+      if(allR)fcAll=id;else fcDW=id;
+      try{localStorage.setItem(allR?"pvphq-fcall":"pvphq-fcdw",id)}catch(e){}
+      render();
+    });
+    $("fcDaysBox").hidden=!(allR&&fcAll==="on");
+    if(document.activeElement!==$("fcDays"))$("fcDays").value=fcDays;;
     renderNav();
     buildModesA();buildModesB();
     renderGraph("abs");renderGraph("rel");
@@ -768,7 +1032,7 @@ td.up{color:var(--up)}td.down{color:var(--down)}
       if(!r.ok)throw new Error("HTTP "+r.status);
       return r.json();
     }).then(function(h){
-      allCache={};data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];
+      allCache={};fcCache={};data=Array.isArray(h)?h.filter(function(p){return p&&typeof p.t==="number"&&p.t>=DATA_FROM}):[];
       EXTRA.forEach(function(e){if(!data.some(function(p){return Math.abs(p.t-e.t)<3e5}))data.push(e)});
       data.sort(function(a,b){return a.t-b.t});loaded=true;failed="";
       $("status").textContent="Updated at "+fT(Date.now())+", "+data.length+" measurements in total";
@@ -989,6 +1253,18 @@ const CHAMPS = {
   var rt;
   window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){if(section==="champs")renderBracket();else{renderGraph("abs");renderGraph("rel");renderShare()}},150)});
   $("refresh").addEventListener("click",function(){load();loadTop()});
+  (function(){
+    var inp=$("fcDays"),tm=null;
+    function apply(){
+      var n=Math.round(+inp.value);
+      if(!(n>=1))return;
+      n=Math.min(365,n);fcDays=n;
+      try{localStorage.setItem("pvphq-fcdays",String(n))}catch(e){}
+      render();
+    }
+    inp.addEventListener("input",function(){clearTimeout(tm);tm=setTimeout(apply,500)});
+    inp.addEventListener("change",function(){clearTimeout(tm);apply();inp.value=fcDays});
+  })();
   render();load();loadTop();
 })();
 </script>
